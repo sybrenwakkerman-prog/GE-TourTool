@@ -1136,6 +1136,27 @@ function buildRider(name, weightKg, raw, color) {
   for (let i = 0; i < n; i++) if (!isNaN(rs.lat[i])) idxs.push(i);
   if (!idxs.length) throw new Error("geen bruikbare punten");
 
+  // Eerst grofweg kijken of dit spoor überhaupt in de buurt van de route
+  // ligt. Zo niet, dan meteen stoppen: elk punt van een rit in Nederland
+  // valt buiten elke cel van de zoekindex, en dan valt de projectie terug
+  // op alle 2000 segmenten aflopen - per seconde spoor. Dat is seconden
+  // rekenen op een laptop en een bevroren scherm op een telefoon, om
+  // daarna alsnog te moeten zeggen dat het het verkeerde bestand is.
+  {
+    const proef = [];
+    for (let k = 0; k < 25; k++) {
+      const i = idxs[Math.floor(idxs.length * k / 25)];
+      proef.push(projectToRoute(rs.lat[i], rs.lon[i], null).dist);
+    }
+    proef.sort((a, b) => a - b);
+    const mediaan = proef[Math.floor(proef.length / 2)];
+    if (mediaan > 5000) {
+      throw new Error("dit spoor ligt niet op de route, gemiddeld " +
+        (mediaan > 20000 ? Math.round(mediaan / 1000) + " km" : Math.round(mediaan) + " m") +
+        " ernaast. Verkeerd bestand, of een rit ergens anders gereden?");
+    }
+  }
+
   const anchorPos = Math.min(idxs.length - 1, 60);
   let offCount = 0;
   const zet = (i, pr) => {
@@ -2495,6 +2516,21 @@ function runSelfTest() {
       near("stop van Rijder C: km-punt", big.km, C_STOP_AT / 1000, 0.4, " km");
     } else ok("stop van Rijder C gevonden", false, "geen enkele stop gedetecteerd");
     ok("Rijder A staat niet stil", riders[0].stopS < 30, fmtDur(riders[0].stopS) + " stilstand");
+
+    // Een rit die ergens anders is gereden moet meteen stuklopen, niet na
+    // seconden rekenen. Zonder deze afslag loopt elk punt langs alle 2000
+    // routesegmenten, want de zoekindex vindt niets in de buurt.
+    {
+      const ver = sims[0].pts.map(p => ({ t: p.t, lat: p.lat + 6, lon: p.lon - 8, ele: p.ele, temp: p.temp }));
+      const t0 = Date.now();
+      let melding = "";
+      try { buildRider("Elders", MASS, parseGPX(toGPX("elders", ver)), RIDER_COLORS[0]); }
+      catch (e) { melding = e.message; }
+      const ms = Date.now() - t0;
+      ok("een rit ergens anders wordt meteen herkend",
+        /niet op de route/.test(melding) && ms < 2000,
+        melding ? melding.slice(0, 60) + "... (na " + ms + " ms)" : "geen foutmelding na " + ms + " ms");
+    }
 
     // Een tunnel is geen stop. Twee identieke gaten in de opname: bij de een
     // staat de rijder stil, bij de ander rijdt hij met 40 km/u door een
