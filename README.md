@@ -24,6 +24,28 @@ Op de iPhone: in Safari op de link → Delen → *Bewaar in Bestanden*, daarna
 openen vanuit de app Bestanden. Eenmaal geopend werkt alles offline, ook in
 de vliegtuigmodus.
 
+## Delen met anderen
+
+Twee manieren, met een verschil dat ertoe doet:
+
+**Het bestand doorsturen** — via AirDrop, WhatsApp als document, of mail.
+De ontvanger moet het opslaan en daarna in Safari of Chrome openen, precies
+zoals hierboven. Dit is de enige manier die onderweg zonder bereik werkt, en
+dus de manier die telt zodra je in Slovenië zit.
+
+**Een link delen** — handig om het even te laten zien zonder gedoe met
+bestanden. `python3 build_web.py` maakt `tourtool-web.html`, de versie zonder
+eigen `<html>`-omhulsel die je kunt hosten. Twee dingen werken daar anders:
+
+- Opslaan gaat via de host, die eerst toestemming vraagt. De tool vangt dat
+  af; weigert iemand, dan staat de tekst er alsnog om te kopieren.
+- De GPS-knop werkt meestal niet, want een ingesloten pagina krijgt geen
+  locatietoestemming. De km met de hand invullen kan altijd.
+
+Kopieren en plakken werkt overal: naast Exporteer JSON staat de tekst om te
+kopieren, en onder Importeer zit een veld om hem terug te plakken. Zo blijft
+de stand van vier dagen ook overeind als het downloaden ergens strandt.
+
 ## De route
 
 De referentieroute is gebouwd uit de vier dag-GPX'en in `gpx/`, aan elkaar
