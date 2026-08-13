@@ -21,6 +21,18 @@ body{
   font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   padding-bottom:env(safe-area-inset-bottom);
   overscroll-behavior-y:none;
+  /* Op het beginscherm hoort dit als een app aan te voelen: geen
+     vergrootglas en geen blauwe selectie als je per ongeluk lang op een
+     knop drukt. */
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;
+  user-select:none;
+}
+/* Behalve waar je wel iets wilt kunnen pakken: invoervelden, en de
+   uitslagen die je in de groepsapp wilt plakken. */
+input,textarea,select,
+#splitsOut,#segOut,#stopOut,#miscOut,#standOut,#standDays,#testOut,#ioFallback{
+  -webkit-user-select:text; user-select:text;
 }
 h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
 h2{font-size:1.05rem;margin-bottom:.5rem}
