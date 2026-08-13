@@ -260,10 +260,46 @@ const ROUTE_PTS = [
 // Dagsplits uit de losse dag-GPX'en. Instelbaar in de UI.
 const DEFAULT_DAYS = [{"label": "Dag 1", "startKm": 0.0, "endKm": 187.6}, {"label": "Dag 2", "startKm": 187.6, "endKm": 386.6}, {"label": "Dag 3", "startKm": 386.6, "endKm": 532.2}, {"label": "Dag 4", "startKm": 532.2, "endKm": 579.1}];
 
-// Strijdsegmenten, gedetecteerd uit het profiel.
-const DEFAULT_SEGMENTS = [
-  {name:"Rakitna", day:"Dag 1", startKm:59.2, endKm:68.8, lengthKm:9.5, gainM:528, grade:5.6, topM:800},
-  {name:"km 257", day:"Dag 2", startKm:257, endKm:263, lengthKm:6, gainM:370, grade:6.2, topM:666},
-  {name:"Vrsic", day:"Dag 3", startKm:492.5, endKm:507.2, lengthKm:14.8, gainM:1028, grade:7, topM:1608},
-  {name:"km 532", day:"Dag 4", startKm:532.5, endKm:536, lengthKm:3.5, gainM:199, grade:5.7, topM:848},
+// Alle klimmen uit het profiel, met categorie voor het
+// bergklassement. cat HC is het zwaarst, 4 het lichtst.
+const DEFAULT_CLIMBS = [
+  {name:"Rakitna", day:"Dag 1", cat:"1", index:2.89, startKm:59, endKm:68.8, lengthKm:9.8, gainM:531, grade:5.4, topM:800},
+  {name:"km 71", day:"Dag 1", cat:"4", index:0.3, startKm:71, endKm:73.2, lengthKm:2.2, gainM:83, grade:3.7, topM:877},
+  {name:"km 77", day:"Dag 1", cat:"5", index:0.24, startKm:76.8, endKm:78.2, lengthKm:1.5, gainM:60, grade:4, topM:856},
+  {name:"km 113", day:"Dag 1", cat:"3", index:0.99, startKm:113, endKm:117, lengthKm:4, gainM:199, grade:5, topM:657},
+  {name:"km 149", day:"Dag 1", cat:"4", index:0.41, startKm:149, endKm:152, lengthKm:3, gainM:112, grade:3.7, topM:231},
+  {name:"km 165", day:"Dag 1", cat:"4", index:0.28, startKm:165.2, endKm:167.2, lengthKm:2, gainM:75, grade:3.7, topM:153},
+  {name:"km 170", day:"Dag 1", cat:"5", index:0.2, startKm:169.8, endKm:171.5, lengthKm:1.8, gainM:59, grade:3.3, topM:129},
+  {name:"km 182", day:"Dag 1", cat:"5", index:0.13, startKm:181.8, endKm:183.8, lengthKm:2, gainM:51, grade:2.5, topM:115},
+  {name:"km 205", day:"Dag 2", cat:"5", index:0.17, startKm:204.8, endKm:208.8, lengthKm:4, gainM:82, grade:2, topM:168},
+  {name:"km 211", day:"Dag 2", cat:"5", index:0.17, startKm:210.8, endKm:212.2, lengthKm:1.5, gainM:50, grade:3.3, topM:188},
+  {name:"km 219", day:"Dag 2", cat:"4", index:0.29, startKm:219, endKm:222, lengthKm:3, gainM:93, grade:3.1, topM:233},
+  {name:"km 250", day:"Dag 2", cat:"3", index:0.59, startKm:249.8, endKm:254.2, lengthKm:4.5, gainM:163, grade:3.6, topM:416},
+  {name:"km 257", day:"Dag 2", cat:"1", index:2.28, startKm:257, endKm:263, lengthKm:6, gainM:370, grade:6.2, topM:666},
+  {name:"km 265", day:"Dag 2", cat:"2", index:1.47, startKm:265, endKm:271.2, lengthKm:6.2, gainM:303, grade:4.9, topM:942},
+  {name:"km 317", day:"Dag 2", cat:"5", index:0.21, startKm:317.2, endKm:320.5, lengthKm:3.2, gainM:84, grade:2.6, topM:225},
+  {name:"km 373", day:"Dag 2", cat:"4", index:0.39, startKm:372.8, endKm:378, lengthKm:5.2, gainM:142, grade:2.7, topM:307},
+  {name:"km 402", day:"Dag 3", cat:"5", index:0.18, startKm:401.5, endKm:403.5, lengthKm:2, gainM:59, grade:3, topM:356},
+  {name:"km 416", day:"Dag 3", cat:"4", index:0.26, startKm:415.8, endKm:423.8, lengthKm:8, gainM:144, grade:1.8, topM:565},
+  {name:"km 431", day:"Dag 3", cat:"4", index:0.26, startKm:430.8, endKm:436.5, lengthKm:5.8, gainM:123, grade:2.1, topM:752},
+  {name:"km 440", day:"Dag 3", cat:"5", index:0.1, startKm:439.8, endKm:442.8, lengthKm:3, gainM:54, grade:1.8, topM:827},
+  {name:"Predel-aanloop", day:"Dag 3", cat:"4", index:0.4, startKm:449, endKm:454.8, lengthKm:5.8, gainM:151, grade:2.6, topM:877},
+  {name:"Predel", day:"Dag 3", cat:"2", index:1.3, startKm:456.8, endKm:461.5, lengthKm:4.8, gainM:249, grade:5.2, topM:1148},
+  {name:"Vrsic", day:"Dag 3", cat:"HC", index:7.17, startKm:492.5, endKm:507.2, lengthKm:14.8, gainM:1028, grade:7, topM:1608},
+  {name:"km 532", day:"Dag 4", cat:"2", index:1.13, startKm:532.5, endKm:536, lengthKm:3.5, gainM:199, grade:5.7, topM:848},
+  {name:"km 561", day:"Dag 4", cat:"5", index:0.21, startKm:560.8, endKm:562.5, lengthKm:1.8, gainM:60, grade:3.4, topM:497},
+  {name:"km 575", day:"Dag 4", cat:"4", index:0.27, startKm:575.2, endKm:577.5, lengthKm:2.2, gainM:78, grade:3.5, topM:461},
+];
+
+// Tussensprints op de vlakste plekken van elke dag. De
+// dagfinish telt daarnaast altijd mee voor het sprintklassement.
+const DEFAULT_SPRINTS = [
+  {name:"Sprint km 58", day:"Dag 1", km:57.8},
+  {name:"Sprint km 127", day:"Dag 1", km:126.6},
+  {name:"Sprint km 248", day:"Dag 2", km:248.5},
+  {name:"Sprint km 324", day:"Dag 2", km:323.5},
+  {name:"Sprint km 439", day:"Dag 3", km:439.2},
+  {name:"Sprint km 482", day:"Dag 3", km:482.2},
+  {name:"Sprint km 549", day:"Dag 4", km:549.4},
+  {name:"Sprint km 564", day:"Dag 4", km:564.2},
 ];

@@ -99,23 +99,33 @@ Hoogste punt: Vršič, 1.608 m, op km 507.
 > opzet. Die staat er alleen nog als naslag; de km-punten daaruit gelden
 > niet meer voor de huidige route.
 
-## Strijdsegmenten
+## De 26 klimmen
 
-De zwaarste klim van elke dag, zodat er elke dag wat te winnen valt:
+Het bergklassement loopt over 26 klimmen, verdeeld 8 / 8 / 7 / 3 over de
+dagen. Van een bult van 50 hoogtemeters tot Vršič — liever veel plekken waar
+wat te pakken valt dan drie beslissende bergen.
 
-| Segment | Dag | van km | tot km | km | hm | gem. |
-|---|---|---|---|---|---|---|
-| Rakitna | 1 | 59,2 | 68,8 | 9,5 | +528 | 5,6% |
-| km 257 | 2 | 257,0 | 263,0 | 6,0 | +370 | 6,2% |
-| Vršič | 3 | 492,5 | 507,2 | 14,8 | +1.028 | 7,0% |
-| km 532 | 4 | 532,5 | 536,0 | 3,5 | +199 | 5,7% |
+De zwaarte komt uit een index (`hoogtewinst² / lengte`), zodat steil zwaarder
+weegt dan lang. Dat is wat een klim in de benen doet.
 
-Twee ervan konden niet met zekerheid op naam worden gebracht en heten nu
-naar hun kilometer. Hernoemen kan in `DEFAULT_SEGMENTS`, onderin
-`build_route.py` gegenereerd en in `tourtool.html` ingebakken.
+| Cat | Aantal | Zwaarste voorbeeld |
+|---|---|---|
+| HC | 1 | Vršič, km 492,5 — 14,8 km, +1.028 hm, 7,0% |
+| 1 | 2 | Rakitna, km 59,0 — 9,8 km, +531 hm, 5,4% |
+| 2 | 3 | Predel, km 456,8 — 4,8 km, +249 hm, 5,2% |
+| 3 | 2 | km 113 — 4,0 km, +199 hm, 5,0% |
+| 4 | 9 | Predel-aanloop, km 449 — 5,8 km, +151 hm |
+| 5 | 9 | km 205 — 4,0 km, +82 hm |
 
-Andere gedetecteerde klimmen boven +150 hm die geen strijdsegment werden:
-km 113 (+199), km 250 (+163), km 265 (+303) en Predel (+249, km 456,8).
+Wie alles zou winnen komt op 140 punten. Vršič is daar 10 van, dus 7% — de
+zwaarste klim is het meest waard maar beslist niets. Het kleinste klimmetje
+levert 4 punten tegen 10 voor Vršič: een factor 2,5, geen factor 10. Wie
+elke dag meedoet wint de bollen, niet wie één keer een col uitzit.
+
+Het aantal is een keuze, geen toeval: `build_route.py` detecteert ruim en
+houdt de `TARGET_CLIMBS` zwaarste over. Zet dat getal hoger of lager en draai
+opnieuw. Klimmen zonder herkenbare naam heten naar hun kilometer; hernoemen
+kan in `DEFAULT_CLIMBS`.
 
 ## De drie tabbladen
 
@@ -146,18 +156,39 @@ Sybren is. Je krijgt:
   minuut aanhoudt; hij sluit zodra het gat onder 10 s zakt. Per breuk: het
   km-punt, wie gelost werd, hoe lang, het grootste gat in seconden én meters,
   en waar het weer dicht was.
-- **VAM per strijdsegment**, met de hoogtewinst van de referentieroute in
-  plaats van drie verschillend gekalibreerde barometers.
+- **Elke klim afzonderlijk**: tijd, gat, VAM en de bergpunten die eruit
+  volgen. De hoogtewinst komt van de referentieroute in plaats van uit drie
+  verschillend gekalibreerde barometers.
+- **Sprints**: wie er als eerste over was, met het gat en je gemiddelde over
+  de laatste kilometer ervoor.
+- **Koers**: tijd op kop, aanvallen, je snelste vijf kilometer en je snelste
+  vijf kilometer bergaf.
 - **Virtuele watts**, maar alleen op segmenten boven 4%. Daaronder domineert
   de CdA-gok de uitkomst en staat er niets — een leeg vakje is eerlijker dan
   een grijs getal.
-- **Stilstand**: elapsed tegen moving, langste enkele stop met km-punt en
-  tijdstip, aantal stops boven twee minuten, en wie het langst stilstond.
+- **Stilstand**: elapsed tegen moving, met de langste stop. Telt nergens voor
+  mee, staat er omdat het de rijtijd verklaart.
 - **Overig**: maximumsnelheid met km-punt, temperatuur als de Garmin die
   meelevert, aankomstvolgorde, en de spreiding in snelheid als proxy voor
   wie zat te accelereren aan kop.
 
-**Klassement** — cumulatief over de dagen.
+**Klassement** — drie truien, cumulatief over de dagen.
+
+- **Algemeen** op opgetelde rijtijd, met het gat naar de leider. Stops tellen
+  niet mee: een lekke band of een lange koffie hoort je klassement niet te
+  kosten, het gaat om de rit. Iedereen wordt over hetzelfde stuk vergeleken —
+  het deel dat jullie alle drie hebben gereden — zodat wie zijn computer wat
+  later aanzette daar niets van merkt.
+- **Berg** op punten boven op elke klim, naar categorie.
+- **Sprint** op punten bij de tussensprints en bij de streep. Twee
+  tussensprints per dag, automatisch op de vlakste stukken gelegd, want
+  bergop is het gewoon klimmen.
+
+Daaronder staat wat niet meetelt voor een trui maar wel het nakijken waard
+is: **tijd op kop**, **aanvallen** en hoe vaak je gelost werd. Tijd op kop is
+de tijd dat jij van de drie het verst op de route was — wie voorop rijdt vangt
+de wind, en dat is uit drie GPS-sporen gewoon af te lezen. Een aanval is een
+gat van meer dan 100 m dat je zelf opende.
 
 De rijders staan bovenaan hetzelfde scriptblok. Het gewicht is rijder + fiets +
 bagage, en de virtuele watts hangen eraan:
@@ -174,11 +205,16 @@ Punten in `POINTS`, daar vlak onder:
 
 ```js
 const POINTS = {
-  segment: [3, 2, 1],   // 1e, 2e, 3e op elk strijdsegment
-  besteVam: 2,          // hoogste VAM van de dag
-  minsteStiltijd: 2,    // kortst stilgestaan
-  gelost: -1,           // per keer gelost worden
-  langsteStop: -1       // langste enkele stop van de dag
+  berg: {                    // voor de eerste drie boven, per categorie
+    "HC": [10, 7, 5],
+    "1":  [8, 6, 4],
+    "2":  [7, 5, 3],
+    "3":  [6, 4, 3],
+    "4":  [5, 3, 2],
+    "5":  [4, 2, 1]
+  },
+  sprintTussen: [5, 3, 1],   // bij een tussensprint
+  sprintFinish: [10, 6, 4]   // bij de streep aan het eind van de dag
 };
 ```
 
@@ -191,7 +227,7 @@ de volgende avond terug.** Er is ook een tekst-export voor in de groepsapp.
 De knop **Draai zelftest** bouwt drie synthetische rijders op de echte route
 met gaten op vooraf bepaalde kilometers, schrijft die weg als GPX en jaagt ze
 door precies dezelfde molen als een echt bestand. Vindt de detector die gaten
-niet terug, dan zie je het meteen. 38 controles.
+niet terug, dan zie je het meteen. 52 controles.
 
 Op geïmporteerde data draaien er sanity checks mee: afstand binnen 5% van het
 routesegment, geen snelheden boven 90 km/u, geen VAM boven 2.000, en een
@@ -233,7 +269,7 @@ node tests/run.js
 
 Trekt de scriptblokken uit `tourtool.html` en draait ze in Node met een
 kleine XML-lezer, zodat de analyse te controleren is zonder telefoon. Draait
-de 38 zelftest-controles plus de vier echte dagbestanden door de projectie en
+de 52 zelftest-controles plus de vier echte dagbestanden door de projectie en
 de afstandscontrole.
 
 ## Wat er bewust niet in zit

@@ -127,7 +127,9 @@ const meta = vm.runInContext("ROUTE_META", ctx);
 console.log("\nroute: " + meta.totalKm + " km, +" + meta.gainM + " hm, top " + meta.maxEleM + " m, "
   + meta.points + " punten");
 console.log("dagen: " + JSON.stringify(vm.runInContext("DEFAULT_DAYS", ctx)));
-console.log("segmenten: " + vm.runInContext("DEFAULT_SEGMENTS", ctx)
-  .map(s => s.name + " km " + s.startKm + "-" + s.endKm).join(", "));
+console.log("klimmen: " + vm.runInContext("DEFAULT_CLIMBS", ctx)
+  .map(c => c.name + " (cat " + c.cat + ", km " + c.startKm + ")").join(", "));
+console.log("sprints: " + vm.runInContext("DEFAULT_SPRINTS", ctx)
+  .map(s => "km " + s.km).join(", "));
 
 process.exit(fail ? 1 : 0);

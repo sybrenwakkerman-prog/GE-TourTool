@@ -136,6 +136,22 @@ hr{border:0;border-top:1px solid var(--line);margin:.9rem 0}
 ul.plain{list-style:none;padding:0;margin:.3rem 0}
 ul.plain li{padding:.3rem 0;border-bottom:1px solid var(--line);font-size:.9rem}
 ul.plain li:last-child{border-bottom:0}
+/* Elke trui zijn eigen kleurstreep, zodat je op een telefoon in één blik
+   ziet welk klassement je voor je hebt. */
+.trui{border-left:4px solid var(--line)}
+.trui h2{display:flex;align-items:center;gap:.45rem}
+.trui .bad9e{font-size:.8rem;line-height:1}
+.trui.geel{border-left-color:#ffb703}  .trui.geel .bad9e{color:#ffb703}
+.trui.bol{border-left-color:#ef4444}   .trui.bol .bad9e{color:#ef4444}
+.trui.groen{border-left-color:#22c55e} .trui.groen .bad9e{color:#22c55e}
+.cat{display:inline-block;min-width:2.1em;text-align:center;padding:.05rem .3rem;border-radius:5px;
+  font-size:.72rem;font-weight:700;background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+.cat.HC{background:#ef4444;color:#fff;border-color:#ef4444}
+.cat.c1{background:#f97316;color:#131416;border-color:#f97316}
+.cat.c2{background:#eab308;color:#131416;border-color:#eab308}
+.cat.c3{background:#3f4854;color:#f4f7fa;border-color:#4b5563}
+.cat.c4{background:transparent;color:var(--dim)}
+.cat.c5{background:transparent;color:var(--dim2)}
 .dayrow{padding:.5rem 0;border-bottom:1px solid var(--line)}
 .dayrow:last-child{border-bottom:0}
 .dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;margin-bottom:.35rem}
@@ -260,9 +276,12 @@ ul.plain li:last-child{border-bottom:0}
       <div id="splitsOut"></div>
     </div>
 
-    <div class="card"><h2>Strijdsegmenten</h2><div id="segOut"></div></div>
-    <div class="card"><h2>Stilstand</h2><div id="stopOut"></div></div>
+    <div class="card"><h2>Dagstand</h2><div id="dayGcOut"></div></div>
+    <div class="card trui bol"><h2><span class="bad9e">●</span> Klimmen</h2><div id="segOut"></div></div>
+    <div class="card trui groen"><h2><span class="bad9e">●</span> Sprints</h2><div id="sprintOut"></div></div>
+    <div class="card"><h2>Koers</h2><div id="raceOut"></div></div>
     <div class="card"><h2>Overig</h2><div id="miscOut"></div></div>
+    <div class="card"><h2>Stilstand</h2><div id="stopOut"></div></div>
 
     <div class="card">
       <h2>Naar klassement</h2>
@@ -282,9 +301,25 @@ ul.plain li:last-child{border-bottom:0}
 
 <!-- ========================== KLASSEMENT =========================== -->
 <section id="p-klassement" role="tabpanel" aria-labelledby="tab-klassement" hidden>
+  <div class="card trui geel">
+    <h2><span class="bad9e">●</span> Algemeen</h2>
+    <div class="est">Opgetelde rijtijd. Stops tellen niet mee.</div>
+    <div id="standAlg"></div>
+  </div>
+  <div class="card trui bol">
+    <h2><span class="bad9e">●</span> Bergklassement</h2>
+    <div class="est">Punten boven op elke klim, zwaarder naarmate de klim zwaarder is.</div>
+    <div id="standBerg"></div>
+  </div>
+  <div class="card trui groen">
+    <h2><span class="bad9e">●</span> Sprint</h2>
+    <div class="est">Punten bij de tussensprints en bij de streep aan het eind van de dag.</div>
+    <div id="standSprint"></div>
+  </div>
   <div class="card">
-    <h2>Stand</h2>
-    <div id="standOut"></div>
+    <h2>Onderweg</h2>
+    <div class="est">Telt niet mee voor een trui, is wel het nakijken waard.</div>
+    <div id="standExtra"></div>
   </div>
   <div class="card">
     <h2>Per dag</h2>
@@ -596,12 +631,48 @@ const ROUTE_PTS = [
 // Dagsplits uit de losse dag-GPX'en. Instelbaar in de UI.
 const DEFAULT_DAYS = [{"label": "Dag 1", "startKm": 0.0, "endKm": 187.6}, {"label": "Dag 2", "startKm": 187.6, "endKm": 386.6}, {"label": "Dag 3", "startKm": 386.6, "endKm": 532.2}, {"label": "Dag 4", "startKm": 532.2, "endKm": 579.1}];
 
-// Strijdsegmenten, gedetecteerd uit het profiel.
-const DEFAULT_SEGMENTS = [
-  {name:"Rakitna", day:"Dag 1", startKm:59.2, endKm:68.8, lengthKm:9.5, gainM:528, grade:5.6, topM:800},
-  {name:"km 257", day:"Dag 2", startKm:257, endKm:263, lengthKm:6, gainM:370, grade:6.2, topM:666},
-  {name:"Vrsic", day:"Dag 3", startKm:492.5, endKm:507.2, lengthKm:14.8, gainM:1028, grade:7, topM:1608},
-  {name:"km 532", day:"Dag 4", startKm:532.5, endKm:536, lengthKm:3.5, gainM:199, grade:5.7, topM:848},
+// Alle klimmen uit het profiel, met categorie voor het
+// bergklassement. cat HC is het zwaarst, 4 het lichtst.
+const DEFAULT_CLIMBS = [
+  {name:"Rakitna", day:"Dag 1", cat:"1", index:2.89, startKm:59, endKm:68.8, lengthKm:9.8, gainM:531, grade:5.4, topM:800},
+  {name:"km 71", day:"Dag 1", cat:"4", index:0.3, startKm:71, endKm:73.2, lengthKm:2.2, gainM:83, grade:3.7, topM:877},
+  {name:"km 77", day:"Dag 1", cat:"5", index:0.24, startKm:76.8, endKm:78.2, lengthKm:1.5, gainM:60, grade:4, topM:856},
+  {name:"km 113", day:"Dag 1", cat:"3", index:0.99, startKm:113, endKm:117, lengthKm:4, gainM:199, grade:5, topM:657},
+  {name:"km 149", day:"Dag 1", cat:"4", index:0.41, startKm:149, endKm:152, lengthKm:3, gainM:112, grade:3.7, topM:231},
+  {name:"km 165", day:"Dag 1", cat:"4", index:0.28, startKm:165.2, endKm:167.2, lengthKm:2, gainM:75, grade:3.7, topM:153},
+  {name:"km 170", day:"Dag 1", cat:"5", index:0.2, startKm:169.8, endKm:171.5, lengthKm:1.8, gainM:59, grade:3.3, topM:129},
+  {name:"km 182", day:"Dag 1", cat:"5", index:0.13, startKm:181.8, endKm:183.8, lengthKm:2, gainM:51, grade:2.5, topM:115},
+  {name:"km 205", day:"Dag 2", cat:"5", index:0.17, startKm:204.8, endKm:208.8, lengthKm:4, gainM:82, grade:2, topM:168},
+  {name:"km 211", day:"Dag 2", cat:"5", index:0.17, startKm:210.8, endKm:212.2, lengthKm:1.5, gainM:50, grade:3.3, topM:188},
+  {name:"km 219", day:"Dag 2", cat:"4", index:0.29, startKm:219, endKm:222, lengthKm:3, gainM:93, grade:3.1, topM:233},
+  {name:"km 250", day:"Dag 2", cat:"3", index:0.59, startKm:249.8, endKm:254.2, lengthKm:4.5, gainM:163, grade:3.6, topM:416},
+  {name:"km 257", day:"Dag 2", cat:"1", index:2.28, startKm:257, endKm:263, lengthKm:6, gainM:370, grade:6.2, topM:666},
+  {name:"km 265", day:"Dag 2", cat:"2", index:1.47, startKm:265, endKm:271.2, lengthKm:6.2, gainM:303, grade:4.9, topM:942},
+  {name:"km 317", day:"Dag 2", cat:"5", index:0.21, startKm:317.2, endKm:320.5, lengthKm:3.2, gainM:84, grade:2.6, topM:225},
+  {name:"km 373", day:"Dag 2", cat:"4", index:0.39, startKm:372.8, endKm:378, lengthKm:5.2, gainM:142, grade:2.7, topM:307},
+  {name:"km 402", day:"Dag 3", cat:"5", index:0.18, startKm:401.5, endKm:403.5, lengthKm:2, gainM:59, grade:3, topM:356},
+  {name:"km 416", day:"Dag 3", cat:"4", index:0.26, startKm:415.8, endKm:423.8, lengthKm:8, gainM:144, grade:1.8, topM:565},
+  {name:"km 431", day:"Dag 3", cat:"4", index:0.26, startKm:430.8, endKm:436.5, lengthKm:5.8, gainM:123, grade:2.1, topM:752},
+  {name:"km 440", day:"Dag 3", cat:"5", index:0.1, startKm:439.8, endKm:442.8, lengthKm:3, gainM:54, grade:1.8, topM:827},
+  {name:"Predel-aanloop", day:"Dag 3", cat:"4", index:0.4, startKm:449, endKm:454.8, lengthKm:5.8, gainM:151, grade:2.6, topM:877},
+  {name:"Predel", day:"Dag 3", cat:"2", index:1.3, startKm:456.8, endKm:461.5, lengthKm:4.8, gainM:249, grade:5.2, topM:1148},
+  {name:"Vrsic", day:"Dag 3", cat:"HC", index:7.17, startKm:492.5, endKm:507.2, lengthKm:14.8, gainM:1028, grade:7, topM:1608},
+  {name:"km 532", day:"Dag 4", cat:"2", index:1.13, startKm:532.5, endKm:536, lengthKm:3.5, gainM:199, grade:5.7, topM:848},
+  {name:"km 561", day:"Dag 4", cat:"5", index:0.21, startKm:560.8, endKm:562.5, lengthKm:1.8, gainM:60, grade:3.4, topM:497},
+  {name:"km 575", day:"Dag 4", cat:"4", index:0.27, startKm:575.2, endKm:577.5, lengthKm:2.2, gainM:78, grade:3.5, topM:461},
+];
+
+// Tussensprints op de vlakste plekken van elke dag. De
+// dagfinish telt daarnaast altijd mee voor het sprintklassement.
+const DEFAULT_SPRINTS = [
+  {name:"Sprint km 58", day:"Dag 1", km:57.8},
+  {name:"Sprint km 127", day:"Dag 1", km:126.6},
+  {name:"Sprint km 248", day:"Dag 2", km:248.5},
+  {name:"Sprint km 324", day:"Dag 2", km:323.5},
+  {name:"Sprint km 439", day:"Dag 3", km:439.2},
+  {name:"Sprint km 482", day:"Dag 3", km:482.2},
+  {name:"Sprint km 549", day:"Dag 4", km:549.4},
+  {name:"Sprint km 564", day:"Dag 4", km:564.2},
 ];
 /* === ROUTE DATA END === */
 /* ==================================================================
@@ -611,13 +682,36 @@ const DEFAULT_SEGMENTS = [
 
 /* ---------------- instelbare constanten (pas hier aan) ------------- */
 
-// Puntentelling voor het klassement.
+// Drie klassementen, zoals het hoort.
+//
+//   ALGEMEEN  op tijd, niet op punten. Rijtijd van dagstart tot dagfinish,
+//             stops eraf. Een lekke band of een lange koffie hoort je klassement
+//             niet te kosten; het gaat om de rit.
+//   BERG      punten boven op elke klim, zwaarder naarmate de klim zwaarder is.
+//   SPRINT    punten bij de tussensprints en bij de dagfinish.
+//
+// Alles hieronder is vrij aan te passen.
 const POINTS = {
-  segment: [3, 2, 1],   // 1e, 2e, 3e op elk strijdsegment
-  besteVam: 2,          // hoogste VAM van de dag
-  minsteStiltijd: 2,    // kortst stilgestaan over de dag
-  gelost: -1,           // per keer dat je gelost wordt
-  langsteStop: -1       // langste enkele stop van de dag
+  // Punten voor de eerste drie boven, per categorie.
+  //
+  // Bewust dicht bij elkaar. Er liggen zeventien klimmen op de route, van
+  // een bult van tachtig hoogtemeters tot Vrsic, en dan hoort de zwaarste
+  // wel het meest waard te zijn maar niet meteen beslissend. Wie alles wint
+  // haalt honderd punten; Vrsic is daar tien van. Consistent klimmen levert
+  // dus meer op dan een dag lang op een col wachten.
+  berg: {
+    "HC": [10, 7, 5],
+    "1": [8, 6, 4],
+    "2": [7, 5, 3],
+    "3": [6, 4, 3],
+    "4": [5, 3, 2],
+    "5": [4, 2, 1]
+  },
+  sprintTussen: [5, 3, 1],   // bij een tussensprint
+  sprintFinish: [10, 6, 4],  // bij de streep aan het eind van de dag
+  // Wordt de bolletjestrui bij gelijke stand gedeeld, dan wint wie de
+  // zwaarste klim won. Dit is de volgorde van zwaar naar licht.
+  catVolgorde: ["HC", "1", "2", "3", "4", "5"]
 };
 
 // Natuurkunde voor de virtuele watts.
@@ -1117,6 +1211,17 @@ function buildTimeCurve(r) {
     }
     run = k; prevKm = k; prevT = tSec;
   }
+  // Een spoor begint zelden precies op een rasterpunt: druk je op start bij
+  // km 386,61 dan blijft het vakje op 386,600 leeg, en valt de rijder uit
+  // elk klassement dat op die grens begint. Tot 200 m terugvullen met het
+  // eerste tijdstip - dat scheelt hooguit een paar seconden en voorkomt dat
+  // iemand om niets buiten de uitslag valt.
+  const eerste = tAt.findIndex(v => !isNaN(v));
+  if (eerste > 0) {
+    const terug = Math.ceil(200 / grid);
+    for (let g = Math.max(0, eerste - terug); g < eerste; g++) tAt[g] = tAt[eerste];
+  }
+
   r.tAt = tAt;
   r.gN = gN;
   r.gFirst = tAt.findIndex(v => !isNaN(v));
@@ -1246,12 +1351,12 @@ function virtualWatts(massKg, lengthM, gainM, durS, meanEleM) {
 }
 
 /**
- * Uitslag per strijdsegment. De hoogtewinst komt uit de referentieroute,
- * niet uit de barometer van elke fietscomputer - anders vergelijk je drie
- * verschillend gekalibreerde hoogtemeters met elkaar.
+ * Uitslag per klim. De hoogtewinst komt uit de referentieroute, niet uit de
+ * barometer van elke fietscomputer - anders vergelijk je drie verschillend
+ * gekalibreerde hoogtemeters met elkaar.
  */
-function segmentResults(riders, segments) {
-  return segments.map(seg => {
+function climbResults(riders, climbs) {
+  return climbs.map(seg => {
     const m0 = seg.startKm * 1000, m1 = seg.endKm * 1000;
     const lengthM = m1 - m0;
     const gainM = seg.gainM != null ? seg.gainM : routeGain(m0, m1);
@@ -1277,10 +1382,82 @@ function segmentResults(riders, segments) {
     rows.sort((a, b) => a.durS - b.durS);
     rows.forEach((r, i) => r.pos = i + 1);
     return {
-      name: seg.name, day: seg.day || "", startKm: seg.startKm, endKm: seg.endKm,
+      name: seg.name, day: seg.day || "", cat: seg.cat || null, index: seg.index || null,
+      startKm: seg.startKm, endKm: seg.endKm,
       lengthKm: lengthM / 1000, gainM, grade, showWatts: grade >= PHYS.minGrade, rows
     };
   }).filter(s => s.rows.length);
+}
+
+/**
+ * Uitslag bij een sprintpunt: puur wie er als eerste overheen kwam.
+ * De aanloopsnelheid staat erbij, want een sprint die je met dertig
+ * kilometer per uur wint is iets anders dan een die je uitrijdt.
+ */
+function sprintResults(riders, punten) {
+  return punten.map(sp => {
+    const m = sp.km * 1000;
+    const rows = [];
+    for (const r of riders) {
+      const t = timeAtM(r, m);
+      if (t == null) continue;
+      const tVoor = timeAtM(r, Math.max(0, m - 1000));
+      rows.push({
+        rider: r.name, color: r.color, tSec: t,
+        aanloopKmh: tVoor != null && t > tVoor ? 1000 / (t - tVoor) * 3.6 : null
+      });
+    }
+    rows.sort((a, b) => a.tSec - b.tSec);
+    rows.forEach((x, i) => {
+      x.pos = i + 1;
+      x.gapS = i === 0 ? 0 : x.tSec - rows[0].tSec;
+    });
+    return { name: sp.name, day: sp.day || "", km: sp.km, soort: sp.soort || "tussen", rows };
+  }).filter(x => x.rows.length);
+}
+
+/**
+ * Algemeen klassement over een dagdeel: rijtijd van start tot finish.
+ *
+ * Stops gaan eraf. Wie een half uur op een terras zit heeft daarmee geen
+ * seconde harder of zachter gereden, en het klassement gaat over de rit.
+ */
+function gcResult(riders, kmFrom, kmTo) {
+  // Iedereen over hetzelfde stuk vergelijken: het gedeelte dat ze alle
+  // drie hebben gereden. Een van de drie die zijn computer een kilometer
+  // later aanzette hoort de anderen geen tijd te schelen.
+  let m0 = kmFrom * 1000, m1 = kmTo * 1000;
+  for (const r of riders) {
+    if (r.gFirst >= 0) m0 = Math.max(m0, r.gFirst * CFG.gridM);
+    if (r.gLast >= 0) m1 = Math.min(m1, r.gLast * CFG.gridM);
+  }
+  if (m1 <= m0) { m0 = kmFrom * 1000; m1 = kmTo * 1000; }
+
+  const rows = [];
+  for (const r of riders) {
+    const ta = timeAtM(r, m0), tb = timeAtM(r, m1);
+    if (ta == null || tb == null || tb <= ta) continue;
+    const bruto = tb - ta;
+    // alleen de stops die binnen dit dagdeel vallen
+    let stil = 0;
+    for (const st of r.stops) {
+      const s0 = st.tStart / 1000, s1 = st.tEnd / 1000;
+      const overlap = Math.min(s1, tb) - Math.max(s0, ta);
+      if (overlap > 0) stil += overlap;
+    }
+    rows.push({
+      rider: r.name, color: r.color,
+      brutoS: bruto, stilS: stil, tijdS: Math.max(1, bruto - stil)
+    });
+  }
+  rows.sort((a, b) => a.tijdS - b.tijdS);
+  rows.forEach((x, i) => {
+    x.pos = i + 1;
+    x.gapS = i === 0 ? 0 : x.tijdS - rows[0].tijdS;
+  });
+  rows.vanKm = m0 / 1000;
+  rows.totKm = m1 / 1000;
+  return rows;
 }
 
 /* --------------------------- overige cijfers ----------------------- */
@@ -1297,6 +1474,77 @@ function stopSummary(riders, kmFrom, kmTo) {
       longest
     };
   });
+}
+
+/**
+ * De cijfers die over het koersen zelf gaan.
+ *
+ * Tijd op kop is de aardigste: met drie sporen op dezelfde route weet je
+ * elke seconde wie er het verst is, en dat is degene die in de wind rijdt.
+ * Geen vermogensmeter voor nodig. Het is een benadering - iemand kan net
+ * uitgelopen zijn zonder kopwerk - maar over een dag middelt dat uit.
+ */
+function raceMetrics(riders, kmFrom, kmTo) {
+  const out = riders.map(r => ({
+    rider: r.name, color: r.color,
+    kopS: 0, aanvallen: 0,
+    snelste5: null, snelsteAfdaling: null
+  }));
+
+  // --- tijd op kop, seconde voor seconde ---
+  if (riders.length > 1) {
+    const t0 = Math.max(...riders.map(r => r.t0));
+    const t1 = Math.min(...riders.map(r => r.t0 + r.n - 1));
+    const voorsprong = riders.map(() => 0);
+    let vorigeKop = -1, kopSinds = 0;
+    for (let t = t0; t <= t1; t++) {
+      let leider = -1, best = -Infinity, tweede = -Infinity;
+      for (let i = 0; i < riders.length; i++) {
+        const k = riders[i].km[t - riders[i].t0];
+        if (isNaN(k)) { leider = -1; break; }
+        if (k > best) { tweede = best; best = k; leider = i; }
+        else if (k > tweede) tweede = k;
+      }
+      if (leider < 0) continue;
+      const km = best / 1000;
+      if (km < kmFrom || km > kmTo) continue;
+      out[leider].kopS++;
+      // demarrage: kop nemen en het gat laten oplopen tot boven 100 m
+      const gatM = best - tweede;
+      if (leider !== vorigeKop) { vorigeKop = leider; kopSinds = t; voorsprong[leider] = 0; }
+      if (gatM > 100 && voorsprong[leider] === 0 && t - kopSinds > 20) {
+        out[leider].aanvallen++;
+        voorsprong[leider] = 1;
+      }
+      if (gatM < 30) voorsprong[leider] = 0;
+    }
+    const totaal = out.reduce((s, x) => s + x.kopS, 0) || 1;
+    for (const x of out) x.kopDeel = x.kopS / totaal;
+  } else {
+    out[0].kopDeel = 1;
+  }
+
+  // --- snelste 5 km, en de snelste 5 km bergaf ---
+  const grid = CFG.gridM, blok = 5000;
+  const stap = Math.round(blok / grid);
+  for (let i = 0; i < riders.length; i++) {
+    const r = riders[i];
+    const g0 = Math.max(r.gFirst, Math.floor(kmFrom * 1000 / grid));
+    const g1 = Math.min(r.gLast, Math.floor(kmTo * 1000 / grid));
+    for (let g = g0; g + stap <= g1; g++) {
+      const ta = r.tAt[g], tb = r.tAt[g + stap];
+      if (isNaN(ta) || isNaN(tb) || tb <= ta) continue;
+      const kmh = blok / (tb - ta) * 3.6;
+      if (kmh > CFG.maxSpeedKmh) continue;
+      const val = { kmh, vanKm: g * grid / 1000, durS: tb - ta };
+      if (!out[i].snelste5 || kmh > out[i].snelste5.kmh) out[i].snelste5 = val;
+      const daling = routeEleAt(g * grid) - routeEleAt((g + stap) * grid);
+      if (daling > 150 && (!out[i].snelsteAfdaling || kmh > out[i].snelsteAfdaling.kmh)) {
+        out[i].snelsteAfdaling = Object.assign({ dalingM: daling }, val);
+      }
+    }
+  }
+  return out;
 }
 
 function miscMetrics(riders) {
@@ -1381,26 +1629,31 @@ function runChecks(riders, kmFrom, kmTo, segs, expectKm) {
 
 /* ----------------------- de dag doorrekenen ------------------------ */
 
-function analyseDay(riders, day, segments) {
-  const segs = segmentResults(riders, segments.filter(
-    s => s.startKm >= day.startKm - 0.5 && s.endKm <= day.endKm + 0.5));
+function analyseDay(riders, day, climbs, sprints) {
+  const inDag = (a, b) => a >= day.startKm - 0.5 && b <= day.endKm + 0.5;
+  const segs = climbResults(riders, climbs.filter(c => inDag(c.startKm, c.endKm)));
+
+  // Sprintpunten: de tussensprints van deze dag, plus de streep aan het
+  // eind. De dagfinish telt zwaarder, net als in een echte koers.
+  const sprintPunten = sprints
+    .filter(sp => inDag(sp.km, sp.km))
+    .map(sp => Object.assign({ soort: "tussen" }, sp));
+  sprintPunten.push({ name: "Finish " + day.label, day: day.label, km: day.endKm, soort: "finish" });
+  const sprintsUit = sprintResults(riders, sprintPunten);
+
+  const gc = gcResult(riders, day.startKm, day.endKm);
+  const race = raceMetrics(riders, day.startKm, day.endKm);
   const { splits, series } = detectSplits(riders, day.startKm, day.endKm);
   const stops = stopSummary(riders, day.startKm, day.endKm);
   const misc = miscMetrics(riders);
   const checks = runChecks(riders, day.startKm, day.endKm, segs, day.endKm - day.startKm);
 
-  // aankomstvolgorde: wie was het eerst op de eind-km
-  const arrivals = riders.map(r => {
-    const t = timeAtM(r, day.endKm * 1000);
-    return { rider: r.name, color: r.color, tSec: t, finishMs: t != null ? t * 1000 : r.tEndMs };
-  }).sort((a, b) => a.finishMs - b.finishMs);
-  arrivals.forEach((a, i) => a.pos = i + 1);
-
   return {
     dayLabel: day.label, kmFrom: day.startKm, kmTo: day.endKm,
     date: new Date(riders[0].tStartMs).toISOString().slice(0, 10),
     riders: riders.map(r => ({ name: r.name, weightKg: r.weightKg, color: r.color })),
-    segs, splits, series, stops, misc, checks, arrivals
+    segs, sprints: sprintsUit, gc, race, splits, series, stops, misc, checks,
+    arrivals: gc.map(g => ({ rider: g.rider, color: g.color, pos: g.pos }))
   };
 }
 
@@ -1561,45 +1814,107 @@ function sunsetMs(date, lat, lon) {
 /* ---------------------------- klassement --------------------------- */
 
 /**
- * Punten voor een dag. Alles komt uit de analyse van die dag; de
- * puntenwaardes staan in POINTS bovenaan.
+ * Uitslag van een dag omzetten naar de drie klassementen.
+ *
+ * Algemeen gaat op tijd, berg en sprint op punten. Alles komt uit de
+ * analyse van die dag; de waardes staan in POINTS bovenaan.
  */
 function scoreDay(an) {
-  const names = an.riders.map(r => r.name);
-  const pts = {}, why = {};
-  names.forEach(n => { pts[n] = 0; why[n] = []; });
-  const give = (n, p, reden) => { if (!(n in pts)) return; pts[n] += p; why[n].push({ p, reden }); };
+  const namen = an.riders.map(r => r.name);
+  const leeg = () => { const o = {}; namen.forEach(n => o[n] = 0); return o; };
 
+  const berg = leeg(), sprint = leeg(), tijd = leeg();
+  const waarom = {}; namen.forEach(n => waarom[n] = []);
+  const bestCat = {}; namen.forEach(n => bestCat[n] = null);
+
+  const geef = (pot, n, p, reden) => {
+    if (!(n in pot) || !p) return;
+    pot[n] += p;
+    waarom[n].push({ p, reden });
+  };
+
+  // --- berg ---
   for (const seg of an.segs) {
+    const tabel = POINTS.berg[seg.cat] || [];
     seg.rows.forEach((row, i) => {
-      const p = POINTS.segment[i];
-      if (p) give(row.rider, p, "" + (i + 1) + "e op " + seg.name);
+      const p = tabel[i];
+      if (!p) return;
+      geef(berg, row.rider, p, "berg: " + (i + 1) + "e boven " + seg.name + " (cat " + seg.cat + ")");
+      if (i === 0) {
+        const rang = POINTS.catVolgorde.indexOf(seg.cat);
+        const huidig = bestCat[row.rider] == null ? 99 : bestCat[row.rider];
+        if (rang >= 0 && rang < huidig) bestCat[row.rider] = rang;
+      }
     });
   }
-  // hoogste VAM van de dag, over alle segmenten
-  let bestVam = null;
-  for (const seg of an.segs) for (const row of seg.rows) {
-    if (!bestVam || row.vam > bestVam.vam) bestVam = { rider: row.rider, vam: row.vam, seg: seg.name };
-  }
-  if (bestVam) give(bestVam.rider, POINTS.besteVam, "hoogste VAM (" + Math.round(bestVam.vam) + " m/u op " + bestVam.seg + ")");
 
-  if (an.stops.length) {
-    const least = an.stops.reduce((a, b) => b.stopS < a.stopS ? b : a);
-    give(least.rider, POINTS.minsteStiltijd, "minste stiltijd (" + fmtDur(least.stopS) + ")");
-    const longest = an.stops.reduce((a, b) =>
-      ((b.longest ? b.longest.durS : 0) > (a.longest ? a.longest.durS : 0)) ? b : a);
-    if (longest.longest) give(longest.rider, POINTS.langsteStop, "langste enkele stop (" + fmtDur(longest.longest.durS) + ")");
+  // --- sprint ---
+  for (const sp of an.sprints) {
+    const tabel = sp.soort === "finish" ? POINTS.sprintFinish : POINTS.sprintTussen;
+    sp.rows.forEach((row, i) => {
+      const p = tabel[i];
+      if (!p) return;
+      geef(sprint, row.rider, p, "sprint: " + (i + 1) + "e bij " + sp.name);
+    });
   }
-  for (const s of an.splits) give(s.rider, POINTS.gelost, "gelost op km " + fmt1(s.kmStart));
 
-  return { dayLabel: an.dayLabel, date: an.date, kmFrom: an.kmFrom, kmTo: an.kmTo, riders: names, pts, why };
+  // --- algemeen: rijtijd ---
+  for (const g of an.gc) tijd[g.rider] = g.tijdS;
+
+  return {
+    dayLabel: an.dayLabel, date: an.date, kmFrom: an.kmFrom, kmTo: an.kmTo,
+    riders: namen,
+    berg, sprint, tijd, bestCat, waarom,
+    // wat leuk is om terug te lezen, telt niet mee voor de trui
+    kop: an.race.reduce((o, x) => (o[x.rider] = x.kopS, o), {}),
+    aanvallen: an.race.reduce((o, x) => (o[x.rider] = x.aanvallen, o), {}),
+    splits: an.splits.map(x => ({ rider: x.rider, km: x.kmStart, durS: x.durS }))
+  };
 }
 
+/**
+ * De drie standen na een aantal dagen.
+ *
+ * Algemeen op opgetelde rijtijd, met het gat naar de leider. Wie een dag
+ * mist telt niet mee in het algemeen - je kunt geen tijden optellen die er
+ * niet zijn - maar houdt zijn berg- en sprintpunten wel.
+ */
 function standings(days) {
-  const tot = {};
-  for (const d of days) for (const n of d.riders) tot[n] = (tot[n] || 0) + (d.pts[n] || 0);
-  return Object.entries(tot).map(([rider, p]) => ({ rider, p }))
-    .sort((a, b) => b.p - a.p || a.rider.localeCompare(b.rider));
+  const namen = [];
+  for (const d of days) for (const n of d.riders) if (!namen.includes(n)) namen.push(n);
+
+  const alg = [], bergst = [], sprintst = [];
+  for (const n of namen) {
+    let tijd = 0, compleet = true, berg = 0, sprint = 0, kop = 0, aanvallen = 0, gelost = 0;
+    let besteCat = 99;
+    for (const d of days) {
+      if (d.tijd && d.tijd[n] > 0) tijd += d.tijd[n]; else compleet = false;
+      berg += (d.berg && d.berg[n]) || 0;
+      sprint += (d.sprint && d.sprint[n]) || 0;
+      kop += (d.kop && d.kop[n]) || 0;
+      aanvallen += (d.aanvallen && d.aanvallen[n]) || 0;
+      gelost += (d.splits || []).filter(x => x.rider === n).length;
+      const bc = d.bestCat && d.bestCat[n];
+      if (bc != null && bc < besteCat) besteCat = bc;
+    }
+    alg.push({ rider: n, tijdS: tijd, compleet, kopS: kop, aanvallen, gelost });
+    bergst.push({ rider: n, p: berg, besteCat });
+    sprintst.push({ rider: n, p: sprint });
+  }
+
+  alg.sort((a, b) => (b.compleet - a.compleet) || (a.tijdS - b.tijdS));
+  const leider = alg.find(x => x.compleet);
+  alg.forEach((x, i) => {
+    x.pos = i + 1;
+    x.gapS = (leider && x.compleet) ? x.tijdS - leider.tijdS : null;
+  });
+  // Bij gelijke bergpunten wint wie de zwaarste klim pakte.
+  bergst.sort((a, b) => b.p - a.p || a.besteCat - b.besteCat || a.rider.localeCompare(b.rider));
+  bergst.forEach((x, i) => x.pos = i + 1);
+  sprintst.sort((a, b) => b.p - a.p || a.rider.localeCompare(b.rider));
+  sprintst.forEach((x, i) => x.pos = i + 1);
+
+  return { algemeen: alg, berg: bergst, sprint: sprintst };
 }
 
 /* ============================= ZELFTEST ============================
@@ -1771,6 +2086,37 @@ function runSelfTest() {
     const back = virtualWatts(78, 1000, 70, 1000 / v, 900);
     near("snelheid en vermogen zijn consistent", back, 250, 3, " W");
 
+    // De klimmenlijst zelf: genoeg te pakken, en niet alles op een berg.
+    {
+      const alle = DEFAULT_CLIMBS;
+      ok("elke klim heeft een categorie met punten",
+        alle.every(c => c.cat && POINTS.berg[c.cat]),
+        alle.length + " klimmen, categorieen " +
+        POINTS.catVolgorde.map(c => c + ":" + alle.filter(x => x.cat === c).length).join(" "));
+
+      const dagen = {};
+      for (const c of alle) dagen[c.day] = (dagen[c.day] || 0) + 1;
+      ok("op elke dag valt wat te pakken",
+        Object.keys(dagen).length >= 4 && Object.values(dagen).every(n => n >= 2),
+        Object.entries(dagen).map(([d, n]) => d + ": " + n).join(", "));
+
+      // Winnen op de zwaarste berg mag niet meteen het klassement beslissen.
+      const teVerdienen = alle.reduce((s, c) => s + POINTS.berg[c.cat][0], 0);
+      const zwaarste = alle.reduce((a, b) => (b.index || 0) > (a.index || 0) ? b : a);
+      const aandeel = POINTS.berg[zwaarste.cat][0] / teVerdienen;
+      ok("de zwaarste klim is niet beslissend", aandeel < 0.15,
+        zwaarste.name + " levert " + POINTS.berg[zwaarste.cat][0] + " van de " +
+        teVerdienen + " te verdienen punten, " + Math.round(aandeel * 100) + "%");
+
+      // Een klein klimmetje moet nog steeds de moeite waard zijn.
+      const kleinste = alle.reduce((a, b) => (b.gainM || 1e9) < (a.gainM || 1e9) ? b : a);
+      const verhouding = POINTS.berg[zwaarste.cat][0] / POINTS.berg[kleinste.cat][0];
+      ok("het kleinste klimmetje levert ook wat op", verhouding <= 3,
+        Math.round(kleinste.gainM) + " hm geeft " + POINTS.berg[kleinste.cat][0] +
+        " punten tegen " + POINTS.berg[zwaarste.cat][0] + " voor " + Math.round(zwaarste.gainM) +
+        " hm — factor " + fmt1(verhouding));
+    }
+
     // Projectie: een routepunt moet op zijn eigen meterstand landen.
     let worst = 0;
     for (let i = 5; i < RT.n; i += 97) {
@@ -1896,9 +2242,9 @@ function runSelfTest() {
 
   // ---- 5. segmenten, VAM en watts ----
   {
-    const vrsic = { name: "Vrsic (test)", startKm: 492.5, endKm: 507.2 };
-    const vlak = { name: "Vlak (test)", startKm: 480, endKm: 490 };
-    const res = segmentResults(riders, [vrsic, vlak]);
+    const vrsic = { name: "Vrsic (test)", cat: "HC", startKm: 492.5, endKm: 507.2 };
+    const vlak = { name: "Vlak (test)", cat: "4", startKm: 480, endKm: 490 };
+    const res = climbResults(riders, [vrsic, vlak]);
     const rv = res.find(s => s.name === "Vrsic (test)");
     const rf = res.find(s => s.name === "Vlak (test)");
     ok("Vrsic herkend als klim boven 4%", rv && rv.grade > 4, rv ? fmt1(rv.grade) + "%" : "segment ontbreekt");
@@ -1921,7 +2267,7 @@ function runSelfTest() {
     ok("temperatuur uit de Garmin-extensie gelezen", m.every(x => x.hasTemp),
       m.map(x => fmt1(x.tempMin) + ".." + fmt1(x.tempMax) + " C").join(" | "));
     const checks = runChecks(riders, START_M / 1000, END_M / 1000,
-      segmentResults(riders, [{ name: "x", startKm: 492.5, endKm: 507.2 }]), polyKm);
+      climbResults(riders, [{ name: "x", cat: "HC", startKm: 492.5, endKm: 507.2 }]), polyKm);
     ok("sanity checks geven groen op schone data", checks.every(c => c.ok),
       checks.filter(c => !c.ok).map(c => c.txt).join(" | ") || "alles in orde");
   }
@@ -1945,13 +2291,78 @@ function runSelfTest() {
 
     const an = analyseDay(riders,
       { label: "Testdag", startKm: START_M / 1000, endKm: END_M / 1000 },
-      [{ name: "Vrsic", startKm: 492.5, endKm: 507.2 }]);
+      [{ name: "Vrsic", cat: "HC", startKm: 492.5, endKm: 507.2 }],
+      [{ name: "Tussensprint", km: 486.5 }]);
     const sc2 = scoreDay(an);
-    ok("klassement kent punten toe", Object.values(sc2.pts).some(p => p !== 0),
-      Object.entries(sc2.pts).map(([k, v]) => k + " " + (v > 0 ? "+" : "") + v).join(", "));
-    ok("gelost worden kost punten", sc2.why["Rijder B"].some(w => w.reden.startsWith("gelost")));
-    ok("aankomstvolgorde bepaald", an.arrivals.length === 3 && an.arrivals[0].pos === 1,
-      an.arrivals.map(a => a.pos + ". " + a.rider).join("  "));
+
+    // --- algemeen ---
+    ok("algemeen klassement op rijtijd, stops eraf",
+      an.gc.length === 3 && an.gc.every(g => g.tijdS > 0 && g.tijdS <= g.brutoS),
+      an.gc.map(g => g.pos + ". " + g.rider + " " + fmtDur(g.tijdS) +
+        (g.stilS > 1 ? " (" + fmtDur(g.stilS) + " stil eraf)" : "")).join("  "));
+    ok("Rijder C wint zijn stop terug in het algemeen",
+      an.gc.find(g => g.rider === "Rijder C").stilS > 300,
+      "stiltijd " + fmtDur(an.gc.find(g => g.rider === "Rijder C").stilS) + " telt niet mee");
+    ok("gaten in het algemeen lopen op vanaf de leider",
+      an.gc[0].gapS === 0 && an.gc.every((g, i, a) => i === 0 || g.gapS >= a[i - 1].gapS));
+
+    // Niemand mag uit de uitslag vallen omdat hij zijn computer een paar
+    // meter na de dagstart aanzette. Hier ging het mis: twee van de drie
+    // verdwenen uit het klassement omdat het rasterpunt op de dagstart bij
+    // hen nog leeg was.
+    {
+      const laat = analyseDay(riders,
+        { label: "Late start", startKm: START_M / 1000 - 2, endKm: END_M / 1000 + 2 },
+        [], []);
+      ok("iedereen blijft in de uitslag bij een dagrand net naast het spoor",
+        laat.gc.length === 3,
+        laat.gc.length + " van de 3 rijders, gemeten over km " +
+        fmt1(laat.gc.vanKm) + " tot " + fmt1(laat.gc.totKm));
+    }
+
+    // --- berg ---
+    const bergTotaal = Object.values(sc2.berg).reduce((x, y) => x + y, 0);
+    near("bergpunten van een HC-klim volledig verdeeld", bergTotaal,
+      POINTS.berg.HC.reduce((x, y) => x + y, 0), 0, " punten");
+    // Wie boven het eerst was moet de meeste bolletjes hebben. Niet
+    // vastpinnen op een naam: in deze simulatie is de snelste boven juist
+    // degene die aan het terugkomen was, en dat hoort gewoon te tellen.
+    const bovenEerst = an.segs[0].rows[0].rider;
+    ok("de snelste boven pakt de bolletjes",
+      sc2.berg[bovenEerst] === POINTS.berg.HC[0],
+      bovenEerst + " was boven in " + fmtDur(an.segs[0].rows[0].durS) + " en krijgt " +
+      sc2.berg[bovenEerst] + " punten (" +
+      Object.entries(sc2.berg).map(([k, v]) => k + " " + v).join(", ") + ")");
+
+    // --- sprint ---
+    ok("sprint telt tussensprint en dagfinish",
+      an.sprints.length === 2 && an.sprints.some(x => x.soort === "finish"),
+      an.sprints.map(x => x.name + " (" + x.soort + ")").join(", "));
+    const sprintTotaal = Object.values(sc2.sprint).reduce((x, y) => x + y, 0);
+    near("sprintpunten volledig verdeeld", sprintTotaal,
+      POINTS.sprintTussen.reduce((x, y) => x + y, 0) + POINTS.sprintFinish.reduce((x, y) => x + y, 0),
+      0, " punten");
+
+    // --- koersgevoel ---
+    const kop = an.race.reduce((x, y) => y.kopS > x.kopS ? y : x);
+    ok("tijd op kop opgeteld over de rijders", 
+      an.race.reduce((s, x) => s + x.kopDeel, 0) > 0.99,
+      an.race.map(x => x.rider + " " + Math.round(x.kopDeel * 100) + "%").join(", "));
+    ok("de sterkste rijder zat het langst op kop", kop.rider === "Rijder A",
+      kop.rider + " met " + fmtDur(kop.kopS));
+    ok("snelste vijf kilometer bergaf gevonden",
+      an.race.every(x => x.snelsteAfdaling && x.snelsteAfdaling.kmh > 20 && x.snelsteAfdaling.kmh < CFG.maxSpeedKmh),
+      an.race.map(x => x.snelsteAfdaling ? fmt1(x.snelsteAfdaling.kmh) + " km/u" : "-").join(" / "));
+
+    // --- stand over meerdere dagen ---
+    const st = standings([sc2, sc2]);
+    ok("twee dagen stapelen telt tijd en punten op",
+      st.algemeen[0].tijdS === an.gc[0].tijdS * 2 &&
+      st.berg[0].p === Math.max(...Object.values(sc2.berg)) * 2,
+      "algemeen " + fmtDur(st.algemeen[0].tijdS) + ", berg " + st.berg[0].p + " punten");
+    ok("drie klassementen met alle rijders erin",
+      st.algemeen.length === 3 && st.berg.length === 3 && st.sprint.length === 3,
+      "1. " + st.algemeen[0].rider + " / bol " + st.berg[0].rider + " / groen " + st.sprint[0].rider);
   }
 
   return A;
@@ -1975,7 +2386,8 @@ const el = (tag, cls, txt) => {
 // dus wat je niet exporteert ben je kwijt als je dit tabblad sluit.
 const state = {
   days: DEFAULT_DAYS.map(d => Object.assign({}, d)),
-  segments: DEFAULT_SEGMENTS.map(s => Object.assign({}, s)),
+  climbs: DEFAULT_CLIMBS.map(c => Object.assign({}, c)),
+  sprints: DEFAULT_SPRINTS.map(x => Object.assign({}, x)),
   files: [],            // {file, naam, gewicht}
   analysis: null,
   scored: [],           // uitslagen per dag voor het klassement
@@ -2054,7 +2466,7 @@ function drawProfile(svg, kmFrom, kmTo, opts) {
   svg.appendChild(svgEl("path", { d, fill: "none", stroke: "#38bdf8", "stroke-width": 2.5, "stroke-linejoin": "round" }));
 
   // strijdsegmenten markeren
-  for (const s of state.segments) {
+  for (const s of state.climbs) {
     if (s.endKm * 1000 < m0 || s.startKm * 1000 > m1) continue;
     const a = X(clamp(s.startKm * 1000, m0, m1)), b = X(clamp(s.endKm * 1000, m0, m1));
     svg.appendChild(svgEl("rect", { x: a, y: PAD_T, width: Math.max(1, b - a), height: H - PAD_T - PAD_B, fill: "#ffb703", opacity: .12 }));
@@ -2118,7 +2530,7 @@ function drawMap(marks) {
   svg.appendChild(svgEl("circle", { cx: PX(toX(s.lon)), cy: PY(toY(s.lat)), r: 8, fill: "#fff", stroke: "#0b0d10", "stroke-width": 3 }));
 
   // strijdsegmenten als toppen
-  for (const seg of state.segments) {
+  for (const seg of state.climbs) {
     const p = routePosAt((seg.startKm + seg.endKm) / 2 * 1000);
     svg.appendChild(svgEl("circle", { cx: PX(toX(p.lon)), cy: PY(toY(p.lat)), r: 5, fill: "#ffb703" }));
   }
@@ -2490,7 +2902,7 @@ $("btnAnalyse").addEventListener("click", async () => {
       riders.push(buildRider(f.naam || ("Rijder " + (i + 1)), f.gewicht, raw, RIDER_COLORS[i]));
     }
     const day = state.days[parseInt($("anDay").value, 10) || 0];
-    const an = analyseDay(riders, day, state.segments);
+    const an = analyseDay(riders, day, state.climbs, state.sprints);
     an.measured = measuredSpeeds(riders[0]);
     state.analysis = an;
     renderAnalysis(an);
@@ -2536,39 +2948,136 @@ function renderAnalysis(an) {
     }
   }
 
-  // segmenten
+  // dagstand op tijd
+  const gcb = $("dayGcOut");
+  clear(gcb);
+  {
+    const t = el("table");
+    t.appendChild(trow("th", ["", "Rijder", "Rijtijd", "Gat", "Stil"]));
+    const tb = el("tbody");
+    for (const g of an.gc) {
+      const tr = trow("td", [g.pos + ".", g.rider, fmtDur(g.tijdS),
+        g.gapS === 0 ? "leider" : "+" + fmtDur(g.gapS), g.stilS > 30 ? fmtDur(g.stilS) : "-"]);
+      tr.children[1].style.color = g.color;
+      if (g.pos === 1) tr.children[3].style.color = "var(--accent)";
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    gcb.appendChild(t);
+    const v = an.gc.vanKm != null ? an.gc.vanKm : an.kmFrom;
+    const w = an.gc.totKm != null ? an.gc.totKm : an.kmTo;
+    gcb.appendChild(el("div", "est", "Rijtijd van km " + fmt1(v) + " tot " + fmt1(w) +
+      ", stops eraf gerekend." + ((v > an.kmFrom + 0.3 || w < an.kmTo - 0.3)
+        ? " Dat is het stuk dat jullie alle drie hebben gereden."
+        : "")));
+  }
+
+  // klimmen
   const gb = $("segOut");
   clear(gb);
   if (!an.segs.length) {
-    gb.appendChild(note("", "Geen strijdsegment binnen dit dagdeel."));
+    gb.appendChild(note("", "Geen geclassificeerde klim binnen dit dagdeel."));
   }
   for (const seg of an.segs) {
-    const h = el("h3", "seg", seg.name + " — km " + fmt1(seg.startKm) + " tot " + fmt1(seg.endKm) +
-      ", " + fmt1(seg.lengthKm) + " km, +" + Math.round(seg.gainM) + " hm, " + fmt1(seg.grade) + "%");
+    const h = el("h3", "seg");
+    h.innerHTML = '<span class="cat ' + (seg.cat === "HC" ? "HC" : "c" + seg.cat) + '">' +
+      esc(seg.cat || "-") + "</span> " + esc(seg.name) + " — km " + fmt1(seg.startKm) +
+      ", " + fmt1(seg.lengthKm) + " km, +" + Math.round(seg.gainM) + " hm, " + fmt1(seg.grade) + "%";
     gb.appendChild(h);
     const t = el("table");
-    const head = ["", "Tijd", "VAM", "km/u"];
+    const head = ["", "Tijd", "Gat", "VAM", "Punten"];
     if (seg.showWatts) head.push("Watt", "W/kg");
     t.appendChild(trow("th", head));
     const tb = el("tbody");
+    const tabel = POINTS.berg[seg.cat] || [];
     for (const r of seg.rows) {
-      const cells = [r.pos + ". " + r.rider, fmtDur(r.durS), Math.round(r.vam), fmt1(r.speedKmh)];
-      if (seg.showWatts) cells.push(r.watts ? Math.round(r.watts) : "-", r.wkg ? fmt2(r.wkg) : "-");
-      const tr = trow("td", cells);
+      const cellen = [r.pos + ". " + r.rider, fmtDur(r.durS),
+        r.pos === 1 ? "-" : "+" + fmtDur(r.durS - seg.rows[0].durS),
+        Math.round(r.vam), tabel[r.pos - 1] ? "+" + tabel[r.pos - 1] : "-"];
+      if (seg.showWatts) cellen.push(r.watts ? Math.round(r.watts) : "-", r.wkg ? fmt2(r.wkg) : "-");
+      const tr = trow("td", cellen);
       tr.firstChild.style.color = r.color;
+      if (r.pos === 1) tr.children[4].style.color = "var(--accent)";
       tb.appendChild(tr);
     }
     t.appendChild(tb);
     gb.appendChild(t);
-    if (seg.showWatts) {
-      gb.appendChild(el("div", "est",
-        "Watt is een schatting uit zwaartekracht, rolweerstand en lucht (Crr " + PHYS.crr +
-        ", CdA " + PHYS.cda + ", rendement " + PHYS.rendement + "). Geen meting. " +
-        "W/kg is gedeeld door het totaalgewicht dat je hebt ingevuld, niet door lichaamsgewicht."));
-    } else {
+    if (!seg.showWatts) {
       gb.appendChild(el("div", "est",
         "Onder " + PHYS.minGrade + "% is een vermogensschatting gokwerk, dus die staat er niet."));
     }
+  }
+  if (an.segs.some(x => x.showWatts)) {
+    gb.appendChild(el("div", "est",
+      "Watt is een schatting uit zwaartekracht, rolweerstand en lucht (Crr " + PHYS.crr +
+      ", CdA " + PHYS.cda + ", rendement " + PHYS.rendement + "). Geen meting. W/kg is gedeeld "
+      + "door het totaalgewicht dat je hebt ingevuld, niet door lichaamsgewicht."));
+  }
+
+  // sprints
+  const spb = $("sprintOut");
+  clear(spb);
+  if (!an.sprints.length) spb.appendChild(note("", "Geen sprintpunt in dit dagdeel."));
+  for (const sp of an.sprints) {
+    const h = el("h3", "seg");
+    h.textContent = (sp.soort === "finish" ? "🏁 " : "") + sp.name + " — km " + fmt1(sp.km);
+    spb.appendChild(h);
+    const t = el("table");
+    t.appendChild(trow("th", ["", "Gat", "Aanloop", "Punten"]));
+    const tb = el("tbody");
+    const tabel = sp.soort === "finish" ? POINTS.sprintFinish : POINTS.sprintTussen;
+    for (const r of sp.rows) {
+      const tr = trow("td", [r.pos + ". " + r.rider,
+        r.pos === 1 ? "-" : "+" + fmtDur(r.gapS),
+        r.aanloopKmh ? fmt1(r.aanloopKmh) + " km/u" : "-",
+        tabel[r.pos - 1] ? "+" + tabel[r.pos - 1] : "-"]);
+      tr.firstChild.style.color = r.color;
+      if (r.pos === 1) tr.lastChild.style.color = "var(--accent)";
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    spb.appendChild(t);
+  }
+  if (an.sprints.length) {
+    spb.appendChild(el("div", "est",
+      "Aanloop is je gemiddelde over de laatste kilometer ervoor. De tussensprints liggen "
+      + "op de vlakste stukken van de dag, de finish is de streep zelf."));
+  }
+
+  // koers
+  const rb = $("raceOut");
+  clear(rb);
+  {
+    const t = el("table");
+    t.appendChild(trow("th", ["Rijder", "Op kop", "Aanvallen", "Snelste 5 km", "Snelste afdaling"]));
+    const tb = el("tbody");
+    for (const x of an.race.slice().sort((a, b) => b.kopS - a.kopS)) {
+      const tr = trow("td", [
+        x.rider,
+        fmtDur(x.kopS) + " (" + Math.round(x.kopDeel * 100) + "%)",
+        x.aanvallen,
+        x.snelste5 ? fmt1(x.snelste5.kmh) + " km/u" : "-",
+        x.snelsteAfdaling ? fmt1(x.snelsteAfdaling.kmh) + " km/u" : "-"
+      ]);
+      tr.firstChild.style.color = x.color;
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    rb.appendChild(t);
+    const kop = an.race.slice().sort((a, b) => b.kopS - a.kopS)[0];
+    const snel = an.race.slice().sort((a, b) =>
+      (b.snelste5 ? b.snelste5.kmh : 0) - (a.snelste5 ? a.snelste5.kmh : 0))[0];
+    if (kop && an.race.length > 1) {
+      rb.appendChild(note("", kop.rider + " zat het langst op kop: " + fmtDur(kop.kopS) +
+        " van de dag, " + Math.round(kop.kopDeel * 100) + "% van de tijd."));
+    }
+    if (snel && snel.snelste5) {
+      rb.appendChild(el("div", "est", "Snelste vijf kilometer van de dag: " + snel.rider + ", " +
+        fmt1(snel.snelste5.kmh) + " km/u vanaf km " + fmt1(snel.snelste5.vanKm) + "."));
+    }
+    rb.appendChild(el("div", "est",
+      "Op kop is de tijd dat je van de drie het verst op de route was — wie voorop rijdt, "
+      + "vangt de wind. Een aanval is een gat van meer dan 100 m dat je zelf opende."));
   }
 
   // stops
@@ -2628,7 +3137,7 @@ function renderAnalysis(an) {
 }
 
 function segNameAt(km) {
-  for (const s of state.segments) if (km >= s.startKm - 0.3 && km <= s.endKm + 0.3) return s.name;
+  for (const s of state.climbs) if (km >= s.startKm - 0.3 && km <= s.endKm + 0.3) return s.name;
   return null;
 }
 function trow(tag, cells) {
@@ -2653,63 +3162,117 @@ $("btnToStanding").addEventListener("click", () => {
 });
 
 function renderStandings() {
-  const box = $("standOut");
-  clear(box);
-  if (!state.scored.length) {
-    box.appendChild(note("", "Nog geen dag toegevoegd. Analyseer een dag en druk op 'Voeg dag toe', of importeer een eerder bestand."));
-  } else {
-    const st = standings(state.scored);
+  const leeg = !state.scored.length;
+  const st = leeg ? null : standings(state.scored);
+  const dagKop = state.scored.map(d => d.dayLabel.replace("Dag ", "D"));
+
+  // --- algemeen: tijd, met het gat naar de leider ---
+  vul("standAlg", () => {
     const t = el("table");
-    t.appendChild(trow("th", ["", "Rijder"].concat(state.scored.map(d => d.dayLabel.replace("Dag ", "D"))).concat(["Totaal"])));
+    t.appendChild(trow("th", ["", "Rijder", "Rijtijd", "Gat"]));
     const tb = el("tbody");
-    st.forEach((r, i) => {
-      const cells = [i + 1 + ".", r.rider];
-      for (const d of state.scored) {
-        const p = d.pts[r.rider];
-        cells.push(p == null ? "-" : (p > 0 ? "+" : "") + p);
-      }
-      cells.push((r.p > 0 ? "+" : "") + r.p);
-      const tr = trow("td", cells);
-      tr.lastChild.style.fontWeight = "700";
-      if (i === 0) tr.lastChild.style.color = "var(--accent)";
+    for (const r of st.algemeen) {
+      const tr = trow("td", [
+        r.pos + ".", r.rider, fmtDur(r.tijdS),
+        !r.compleet ? "—" : (r.gapS === 0 ? "leider" : "+" + fmtDur(r.gapS))
+      ]);
+      if (r.pos === 1 && r.compleet) tr.lastChild.style.color = "var(--accent)";
+      if (!r.compleet) tr.style.opacity = ".6";
       tb.appendChild(tr);
-    });
+    }
     t.appendChild(tb);
-    box.appendChild(t);
+    return t;
+  }, "Nog geen dag toegevoegd.");
+
+  if (!leeg && st.algemeen.some(r => !r.compleet)) {
+    $("standAlg").appendChild(note("warn",
+      "Wie een dag mist staat grijs: je kunt geen tijden optellen die er niet zijn. "
+      + "Zijn berg- en sprintpunten tellen wel gewoon mee."));
   }
 
+  // --- berg en sprint: punten per dag ---
+  const puntTabel = (rijen, veld) => {
+    const t = el("table");
+    t.appendChild(trow("th", ["", "Rijder"].concat(dagKop).concat(["Punten"])));
+    const tb = el("tbody");
+    for (const r of rijen) {
+      const cellen = [r.pos + ".", r.rider];
+      for (const d of state.scored) cellen.push(d[veld] && d[veld][r.rider] ? d[veld][r.rider] : "-");
+      cellen.push(r.p);
+      const tr = trow("td", cellen);
+      tr.lastChild.style.fontWeight = "700";
+      if (r.pos === 1 && r.p > 0) tr.lastChild.style.color = "var(--accent)";
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    return t;
+  };
+  vul("standBerg", () => puntTabel(st.berg, "berg"), "Nog geen klim gereden.");
+  vul("standSprint", () => puntTabel(st.sprint, "sprint"), "Nog geen sprint gereden.");
+
+  // --- de rest ---
+  vul("standExtra", () => {
+    const t = el("table");
+    t.appendChild(trow("th", ["Rijder", "Op kop", "Aanvallen", "Gelost"]));
+    const tb = el("tbody");
+    const totaalKop = st.algemeen.reduce((x, r) => x + r.kopS, 0) || 1;
+    for (const r of st.algemeen.slice().sort((a, b) => b.kopS - a.kopS)) {
+      tb.appendChild(trow("td", [
+        r.rider,
+        fmtDur(r.kopS) + "  (" + Math.round(r.kopS / totaalKop * 100) + "%)",
+        r.aanvallen, r.gelost
+      ]));
+    }
+    t.appendChild(tb);
+    return t;
+  }, "Nog niets.");
+  if (!leeg) {
+    $("standExtra").appendChild(el("div", "est",
+      "Op kop is de tijd dat je van de drie het verst op de route was. Geen vermogensmeter "
+      + "nodig: wie voorop rijdt, vangt de wind. Een aanval is een gat van meer dan 100 m dat "
+      + "je zelf opende."));
+  }
+
+  // --- per dag uitklapbaar ---
   const db = $("standDays");
   clear(db);
-  if (!state.scored.length) db.appendChild(el("p", "muted", "Nog niets."));
+  if (leeg) db.appendChild(el("p", "muted", "Nog niets."));
   for (const d of state.scored) {
     const det = el("details");
-    const s = el("summary", null, d.dayLabel + " — km " + fmt1(d.kmFrom) + " tot " + fmt1(d.kmTo) + "  ·  " + d.date);
-    det.appendChild(s);
+    det.appendChild(el("summary", null,
+      d.dayLabel + " — km " + fmt1(d.kmFrom) + " tot " + fmt1(d.kmTo) + "  ·  " + d.date));
     for (const naam of d.riders) {
       const h = el("div");
-      h.style.marginTop = ".4rem";
-      h.innerHTML = "<b>" + esc(naam) + "</b> " + (d.pts[naam] > 0 ? "+" : "") + d.pts[naam];
+      h.style.marginTop = ".5rem";
+      h.innerHTML = "<b>" + esc(naam) + "</b> <span class='muted'>" + fmtDur(d.tijd[naam]) +
+        "  ·  berg " + (d.berg[naam] || 0) + "  ·  sprint " + (d.sprint[naam] || 0) + "</span>";
       det.appendChild(h);
       const ul = el("ul", "plain");
-      for (const w of d.why[naam]) {
-        ul.appendChild(el("li", null, (w.p > 0 ? "+" : "") + w.p + "  " + w.reden));
-      }
-      if (!d.why[naam].length) ul.appendChild(el("li", "muted", "niets gescoord"));
+      for (const w of d.waarom[naam]) ul.appendChild(el("li", null, "+" + w.p + "  " + w.reden));
+      if (!d.waarom[naam].length) ul.appendChild(el("li", "muted", "geen punten gepakt"));
       det.appendChild(ul);
     }
     db.appendChild(det);
   }
 
+  // --- puntentelling tonen ---
   const pb = $("pointsOut");
   clear(pb);
-  pb.appendChild(kvList([
-    ["Strijdsegment 1e / 2e / 3e", POINTS.segment.map(p => "+" + p).join(" / ")],
-    ["Hoogste VAM van de dag", "+" + POINTS.besteVam],
-    ["Minste stiltijd", "+" + POINTS.minsteStiltijd],
-    ["Elke keer gelost", String(POINTS.gelost)],
-    ["Langste enkele stop", String(POINTS.langsteStop)]
-  ]));
-  pb.appendChild(el("div", "est", "Aanpassen kan in de constante POINTS bovenaan het scriptblok."));
+  const rijen = POINTS.catVolgorde.map(c =>
+    ["Boven op een klim cat " + c, POINTS.berg[c].map(p => "+" + p).join(" / ")]);
+  rijen.push(["Tussensprint", POINTS.sprintTussen.map(p => "+" + p).join(" / ")]);
+  rijen.push(["Dagfinish", POINTS.sprintFinish.map(p => "+" + p).join(" / ")]);
+  pb.appendChild(kvList(rijen));
+  pb.appendChild(el("div", "est",
+    "Steeds voor de eerste drie boven of over. Algemeen gaat op tijd, niet op punten. "
+    + "Aanpassen kan in de constante POINTS bovenaan het scriptblok."));
+
+  function vul(id, maak, leegTekst) {
+    const box = $(id);
+    clear(box);
+    if (leeg) { box.appendChild(note("", leegTekst)); return; }
+    box.appendChild(maak());
+  }
 }
 
 /* ------------------------- opslaan en laden ------------------------ */
@@ -2796,7 +3359,8 @@ $("btnExport").addEventListener("click", () => {
     punten: POINTS,
     route: ROUTE_META,
     dagen: state.days,
-    segmenten: state.segments,
+    klimmen: state.climbs,
+    sprints: state.sprints,
     uitslagen: state.scored
   };
   download("grand-escape-stand-" + new Date().toISOString().slice(0, 10) + ".json",
@@ -2826,7 +3390,8 @@ function importJSON(tekst) {
     const data = JSON.parse(tekst);
     if (data.formaat !== "grand-escape-tourtool") throw new Error("dit is geen export van deze tool");
     if (Array.isArray(data.dagen) && data.dagen.length) state.days = data.dagen;
-    if (Array.isArray(data.segmenten) && data.segmenten.length) state.segments = data.segmenten;
+    if (Array.isArray(data.klimmen) && data.klimmen.length) state.climbs = data.klimmen;
+    if (Array.isArray(data.sprints) && data.sprints.length) state.sprints = data.sprints;
     state.scored = Array.isArray(data.uitslagen) ? data.uitslagen : [];
     refreshDays();
     renderStandings();

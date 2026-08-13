@@ -38,6 +38,11 @@ DAY_FILES = [
 RESAMPLE_M = 250.0
 TARGET_POINTS = 2000
 
+# Hoeveel klimmen er in het bergklassement meedoen. We detecteren ruim en
+# houden de zwaarste over, zodat dit getal een keuze is en niet de uitkomst
+# van twee drempels die je net zo lang bijstelt tot het toevallig klopt.
+TARGET_CLIMBS = 26
+
 # Namen voor gedetecteerde klimmen: (naam, lat top, lon top, radius m).
 # Alleen cols waarvan de positie vaststaat. Klimmen die hier niet in de buurt
 # van liggen krijgen "Klim km X" - hernoem die met de hand in DEFAULT_SEGMENTS
@@ -265,12 +270,15 @@ def downsample(res_pts, target, breaks=()):
 # ------------------------------------------------------------ klimdetectie
 
 
-def detect_climbs(dists, eles, min_gain=150.0, min_grade=2.5):
+def detect_climbs(dists, eles, min_gain=50.0, min_grade=2.0):
     """Vindt aaneengesloten klimmen in het gesmoothde profiel.
 
     Werkwijze: markeer stijgende stukken over een 400 m-venster, plak stukken
     aan elkaar die minder dan 1 km uit elkaar liggen en er tussenin niet meer
     dan 40 m verliezen, en houd alles over met genoeg hoogtewinst.
+
+    De drempel ligt laag met opzet: een klimmetje van honderd hoogtemeters
+    mag ook punten opleveren.
     """
     n = len(dists)
     win = 400.0
@@ -330,6 +338,97 @@ def detect_climbs(dists, eles, min_gain=150.0, min_grade=2.5):
     return climbs
 
 
+def fiets_index(gain_m, length_m):
+    """Zwaarte van een klim: hoogtewinst in het kwadraat gedeeld door de
+    lengte. Zo weegt steil veel zwaarder dan lang, wat overeenkomt met hoe
+    een klim aanvoelt. Vrsic komt op ruim 7 uit, een vlakke oprit op 0,3.
+    """
+    if length_m <= 0:
+        return 0.0
+    return gain_m * gain_m / (length_m * 10.0)
+
+
+# Ondergrens van de zwaarte-index per categorie.
+#
+# Bewust laag afgesteld: liever veel klimmetjes waar wat te pakken valt dan
+# drie beslissende bergen. Een bult van honderd hoogtemeters telt gewoon mee.
+CATS = [
+    (5.0, "HC"),
+    (2.0, "1"),
+    (1.05, "2"),
+    (0.50, "3"),
+    (0.25, "4"),
+    (0.0, "5"),
+]
+
+
+def categorie(index):
+    for grens, naam in CATS:
+        if index >= grens:
+            return naam
+    return None
+
+
+def find_sprints(dists, eles, splits, per_dag=2):
+    """Zoekt vlakke plekken voor tussensprints.
+
+    Een sprint hoort op vlak terrein: bergop is het gewoon klimmen, bergaf
+    is het rollen. We zoeken per dag de vlakste punten rond een derde en
+    twee derde van de dag, gemeten over de laatste twee kilometer ervoor.
+    """
+    out = []
+    for s in splits:
+        d0, d1 = s["start_m"], s["end_m"]
+        for k in range(1, per_dag + 1):
+            doel = d0 + (d1 - d0) * k / (per_dag + 1)
+            beste, beste_score = None, 1e9
+            # een venster van 12 km rond het doel aftasten
+            m = max(d0 + 3000, doel - 6000)
+            while m < min(d1 - 500, doel + 6000):
+                aanloop = 2000.0
+                if m - aanloop < d0:
+                    m += 250
+                    continue
+                e0 = ele_at(dists, eles, m - aanloop)
+                e1 = ele_at(dists, eles, m)
+                # gemiddelde steilheid over de aanloop, plus de ruwheid
+                helling = abs(e1 - e0) / aanloop * 100
+                ruw = 0.0
+                stappen = 8
+                for j in range(stappen):
+                    a = ele_at(dists, eles, m - aanloop + aanloop * j / stappen)
+                    b = ele_at(dists, eles, m - aanloop + aanloop * (j + 1) / stappen)
+                    ruw += abs(b - a)
+                score = helling * 3 + ruw / aanloop * 100
+                # niet te dicht op een eerdere sprint
+                if any(abs(m - p["m"]) < 8000 for p in out):
+                    score += 50
+                if score < beste_score:
+                    beste_score, beste = score, m
+                m += 250
+            if beste is not None:
+                out.append({"m": beste, "dag": s["label"], "vlakheid": beste_score})
+    return out
+
+
+def ele_at(dists, eles, m):
+    """Hoogte op meterstand m, lineair tussen twee rasterpunten."""
+    if m <= dists[0]:
+        return eles[0]
+    if m >= dists[-1]:
+        return eles[-1]
+    lo, hi = 0, len(dists) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if dists[mid] <= m:
+            lo = mid
+        else:
+            hi = mid
+    span = dists[hi] - dists[lo]
+    f = 0.0 if span <= 0 else (m - dists[lo]) / span
+    return eles[lo] + (eles[hi] - eles[lo]) * f
+
+
 def name_climb(pts, i0, i1):
     """Noemt een klim naar de dichtstbijzijnde bekende landmark bij de top."""
     seg = pts[i0 : i1 + 1]
@@ -352,7 +451,7 @@ def js_number(x, digits):
     return s or "0"
 
 
-def emit_js(route, splits, climbs, meta):
+def emit_js(route, splits, climbs, sprints, meta):
     """Schrijft de JS-constante. Coordinaten op 5 decimalen (~1 m)."""
     lines = []
     lines.append("// Gegenereerd door build_route.py - NIET met de hand aanpassen.")
@@ -397,20 +496,37 @@ def emit_js(route, splits, climbs, meta):
         )
     )
     lines.append("")
-    lines.append("// Strijdsegmenten, gedetecteerd uit het profiel.")
-    lines.append("const DEFAULT_SEGMENTS = [")
+    lines.append("// Alle klimmen uit het profiel, met categorie voor het")
+    lines.append("// bergklassement. cat HC is het zwaarst, 4 het lichtst.")
+    lines.append("const DEFAULT_CLIMBS = [")
     for c in climbs:
         lines.append(
-            '  {name:%s, day:%s, startKm:%s, endKm:%s, lengthKm:%s, gainM:%s, grade:%s, topM:%s},'
+            '  {name:%s, day:%s, cat:%s, index:%s, startKm:%s, endKm:%s, lengthKm:%s, gainM:%s, grade:%s, topM:%s},'
             % (
                 json.dumps(c["name"], ensure_ascii=False),
                 json.dumps(c.get("day", ""), ensure_ascii=False),
+                json.dumps(c["cat"], ensure_ascii=False),
+                js_number(c["index"], 2),
                 js_number(c["start_m"] / 1000, 1),
                 js_number(c["end_m"] / 1000, 1),
                 js_number(c["length_m"] / 1000, 1),
                 js_number(c["gain_m"], 0),
                 js_number(c["grade"], 1),
                 js_number(c["top_m"], 0),
+            )
+        )
+    lines.append("];")
+    lines.append("")
+    lines.append("// Tussensprints op de vlakste plekken van elke dag. De")
+    lines.append("// dagfinish telt daarnaast altijd mee voor het sprintklassement.")
+    lines.append("const DEFAULT_SPRINTS = [")
+    for s in sprints:
+        lines.append(
+            '  {name:%s, day:%s, km:%s},'
+            % (
+                json.dumps(s["name"], ensure_ascii=False),
+                json.dumps(s["dag"], ensure_ascii=False),
+                js_number(s["m"] / 1000, 1),
             )
         )
     lines.append("];")
@@ -514,37 +630,36 @@ def main():
         seen[c["name"]] = seen.get(c["name"], 0) + 1
         if seen[c["name"]] > 1:
             c["name"] = "%s %d" % (c["name"], seen[c["name"]])
-    print("  %-22s %7s %8s %7s %7s %7s" % ("klim", "van km", "tot km", "km", "hm", "gem%"))
+    # De zwaarste TARGET_CLIMBS houden, daarna weer op volgorde van de route.
+    for c in climbs:
+        c["index"] = fiets_index(c["gain_m"], c["length_m"])
+    gevonden = len(climbs)
+    climbs = sorted(climbs, key=lambda c: -c["index"])[:TARGET_CLIMBS]
+    climbs.sort(key=lambda c: c["start_m"])
+    for c in climbs:
+        c["cat"] = categorie(c["index"])
+        mid = (c["start_m"] + c["end_m"]) / 2
+        c["day"] = next(
+            (s["label"] for s in splits if s["start_m"] <= mid < s["end_m"]), ""
+        )
+    print("  %d gevonden, de %d zwaarste doen mee" % (gevonden, len(climbs)))
+
+    print("  %-20s %-6s %5s %7s %8s %6s %6s %5s"
+          % ("klim", "dag", "cat", "van km", "tot km", "km", "hm", "gem%"))
     for c in climbs:
         print(
-            "  %-22s %7.1f %8.1f %7.1f %7.0f %7.1f"
-            % (
-                c["name"],
-                c["start_m"] / 1000,
-                c["end_m"] / 1000,
-                c["length_m"] / 1000,
-                c["gain_m"],
-                c["grade"],
-            )
+            "  %-20s %-6s %5s %7.1f %8.1f %6.1f %6.0f %5.1f   index %.2f"
+            % (c["name"], c["day"], c["cat"], c["start_m"] / 1000, c["end_m"] / 1000,
+               c["length_m"] / 1000, c["gain_m"], c["grade"], c["index"])
         )
 
-    # Strijdsegmenten: de zwaarste klim van elke dag, zodat er elke dag wat
-    # te winnen valt. Aanpassen kan in DEFAULT_SEGMENTS in de HTML.
-    battle = []
-    for s in splits:
-        inday = [
-            c
-            for c in climbs
-            if s["start_m"] <= (c["start_m"] + c["end_m"]) / 2 < s["end_m"]
-        ]
-        if inday:
-            top = max(inday, key=lambda c: c["gain_m"])
-            top["day"] = s["label"]
-            battle.append(top)
-    print(
-        "  strijdsegmenten: %s"
-        % ", ".join("%s (%s)" % (c["name"], c["day"]) for c in battle)
-    )
+    print("Tussensprints zoeken")
+    sprints = find_sprints(rd, re_, splits)
+    for i, sp in enumerate(sprints):
+        # naam naar de dichtstbijzijnde klim of gewoon de kilometer
+        sp["name"] = "Sprint km %.0f" % (sp["m"] / 1000)
+        print("  %-16s %-6s km %7.1f   vlakheid %.2f"
+              % (sp["name"], sp["dag"], sp["m"] / 1000, sp["vlakheid"]))
 
     meta = {
         "sources": [f for _, f in DAY_FILES],
@@ -561,7 +676,7 @@ def main():
         },
     }
 
-    blob = emit_js(route, splits, battle, meta)
+    blob = emit_js(route, splits, climbs, sprints, meta)
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(blob)
     print("Geschreven: %s (%.0f kB)" % (args.out, os.path.getsize(args.out) / 1024))
