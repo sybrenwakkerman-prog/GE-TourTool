@@ -140,6 +140,22 @@ ul.plain li:last-child{border-bottom:0}
 </header>
 
 <main>
+<!-- Blijft staan zolang het script niet tot het eind is gekomen. Zonder
+     dit vak zie je bij een geblokkeerd of half binnengekomen bestand
+     alleen een pagina die nergens op reageert. -->
+<div id="bootWarn" class="card" style="border-color:#ef4444">
+  <h2 style="color:#ef4444">De tool is niet opgestart</h2>
+  <p>De opmaak is geladen, maar het rekenwerk niet. Dat betekent bijna altijd
+     een van deze twee dingen:</p>
+  <p><b>1. Het bestand wordt in een voorvertoning geopend.</b> Een preview in een
+     chat-app, mailprogramma of bestandsviewer blokkeert scripts. Bewaar
+     <code>tourtool.html</code> eerst op je telefoon en open het daarna
+     rechtstreeks in Safari of Chrome.</p>
+  <p><b>2. Het bestand is niet compleet binnengekomen.</b> Het hoort ongeveer
+     165 kB te zijn. Download het opnieuw.</p>
+  <p id="bootWarnDetail" class="est"></p>
+</div>
+
 <!-- ============================ VANDAAG ============================ -->
 <section id="p-vandaag" role="tabpanel" aria-labelledby="tab-vandaag">
   <div class="card">
@@ -270,6 +286,17 @@ ul.plain li:last-child{border-bottom:0}
 </section>
 </main>
 
+<!-- Toont fouten op het scherm. Op een telefoon klap je geen console open,
+     dus een stille fout is een dode pagina zonder uitleg. Expres een eigen
+     blokje: staat dit in het grote blok, dan wordt het bij een syntaxfout
+     daar nooit geregistreerd en blijf je zonder melding zitten. -->
+<script>
+if (typeof window !== "undefined") window.addEventListener("error", function (e) {
+  var d = document.getElementById("bootWarnDetail");
+  if (d) d.textContent = "Foutmelding: " + (e.message || e.type) +
+    (e.lineno ? " (regel " + e.lineno + ")" : "");
+});
+</script>
 <script>
 "use strict";
 /* === ROUTE DATA START === */
@@ -543,9 +570,6 @@ const DEFAULT_SEGMENTS = [
   {name:"km 532", day:"Dag 4", startKm:532.5, endKm:536, lengthKm:3.5, gainM:199, grade:5.7, topM:848},
 ];
 /* === ROUTE DATA END === */
-</script>
-<script>
-"use strict";
 /* ==================================================================
    Grand Escape Tourtool - analyse-engine
    Alles draait lokaal. Geen netwerk, geen opslag, geen dependencies.
@@ -596,9 +620,9 @@ const CFG = {
 // hetzelfde intikken. Gewicht is rijder + fiets + bagage; pas het aan
 // zodra je het echt gewogen hebt, want de virtuele watts hangen eraan.
 const RIDERS = [
-  { naam: "Sybren", gewicht: 85 },
-  { naam: "Luuk", gewicht: 85 },
-  { naam: "Thijmen", gewicht: 85 }
+  { naam: "Sybren", gewicht: 80 },
+  { naam: "Luuk", gewicht: 77 },
+  { naam: "Thijmen", gewicht: 75 }
 ];
 
 const RIDER_COLORS = ["#38bdf8", "#fb923c", "#a3e635"];
@@ -2743,6 +2767,8 @@ $("btnSelfTest").addEventListener("click", () => {
 
 /* ------------------------------ start ------------------------------ */
 
+try {
+
 // Wie ben jij: bepaalt alleen welk gewicht het ETA-model gebruikt.
 RIDERS.forEach((r, i) => {
   const o = el("option", null, r.naam);
@@ -2767,6 +2793,16 @@ $("etaTarget").value = fmt1(state.days[0].endKm);
 state.etaKm = state.days[0].startKm;
 drawRest();
 drawMap();
+
+// Pas hier weg: als we tot hier komen, draait alles.
+const warn = $("bootWarn");
+if (warn) warn.remove();
+
+} catch (err) {
+  const d = $("bootWarnDetail");
+  if (d) d.textContent = "Foutmelding: " + err.message;
+  throw err;
+}
 
 })();
 </script>

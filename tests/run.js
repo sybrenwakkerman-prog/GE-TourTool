@@ -67,7 +67,7 @@ class DOMParser {
 /* ------------------ script uit de HTML trekken --------------------- */
 const html = fs.readFileSync(path.join(__dirname, "..", "tourtool.html"), "utf8");
 const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-if (blocks.length < 2) { console.error("scriptblokken niet gevonden"); process.exit(1); }
+if (blocks.length < 1) { console.error("scriptblok niet gevonden"); process.exit(1); }
 
 const ctx = vm.createContext({ DOMParser, console, Date, Math, JSON, isFinite, isNaN, parseFloat, parseInt,
   Float64Array, Set, Map, Object, Array, String, Number, Error });

@@ -5,9 +5,24 @@ overdag te zien of het hotel voor donker haalbaar is.
 
 Voor Sybren, Luuk en Thijmen.
 
-Open **`tourtool.html`** op je telefoon. Verder is er niets nodig: geen
-netwerk, geen installatie, geen account. Alle GPX-verwerking gebeurt in de
-browser zelf.
+Verder is er niets nodig: geen netwerk, geen installatie, geen account. Alle
+GPX-verwerking gebeurt in de browser zelf.
+
+## Openen
+
+**Bewaar `tourtool.html` eerst op je telefoon en open het daarna vanuit
+Bestanden met Safari of Chrome.** Rechtstreeks aantikken in een chat-app of
+mail werkt vaak niet: die openen het in een ingebouwde voorvertoning, en die
+blokkeert scripts. Je krijgt dan wel de opmaak te zien maar niets werkt —
+lege keuzelijsten, geen kaart, tabbladen die niet reageren.
+
+Gebeurt dat, dan zie je nu bovenaan een rood vak dat vertelt wat er mis is.
+Verdwijnt dat vak, dan draait alles. Het bestand hoort ongeveer 165 kB te
+zijn; is het kleiner, dan is de download afgebroken.
+
+Op de iPhone: in Safari op de link → Delen → *Bewaar in Bestanden*, daarna
+openen vanuit de app Bestanden. Eenmaal geopend werkt alles offline, ook in
+de vliegtuigmodus.
 
 ## De route
 
@@ -88,15 +103,14 @@ Sybren is. Je krijgt:
 
 **Klassement** — cumulatief over de dagen.
 
-De rijders staan bovenaan hetzelfde scriptblok. Het gewicht is rijder +
-fiets + bagage; de virtuele watts hangen eraan, dus vul het echte gewicht in
-zodra je het gewogen hebt:
+De rijders staan bovenaan hetzelfde scriptblok. Het gewicht is rijder + fiets +
+bagage, en de virtuele watts hangen eraan:
 
 ```js
 const RIDERS = [
-  { naam: "Sybren", gewicht: 85 },
-  { naam: "Luuk", gewicht: 85 },
-  { naam: "Thijmen", gewicht: 85 }
+  { naam: "Sybren", gewicht: 80 },
+  { naam: "Luuk", gewicht: 77 },
+  { naam: "Thijmen", gewicht: 75 }
 ];
 ```
 
