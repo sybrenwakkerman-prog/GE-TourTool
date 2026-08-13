@@ -3,6 +3,8 @@
 Eén HTML-bestand om drie ritten per dag tegen elkaar af te zetten, en om
 overdag te zien of het hotel voor donker haalbaar is.
 
+Voor Sybren, Luuk en Thijmen.
+
 Open **`tourtool.html`** op je telefoon. Verder is er niets nodig: geen
 netwerk, geen installatie, geen account. Alle GPX-verwerking gebeurt in de
 browser zelf.
@@ -59,11 +61,14 @@ over het gereden profiel verklaart, en dat wordt losgelaten op wat er nog
 komt. Zo weegt een klim vanzelf zwaarder dan een vlak stuk. Heb je het spoor
 van vandaag al ingeladen, dan worden beide snelheden gewoon gemeten.
 
-De dagindeling is aanpasbaar; het echte schema mag afwijken van de GPX-splits.
+Kies bij **Ik ben** wie je bent; dat bepaalt alleen welk gewicht het
+vermogensmodel gebruikt. De dagindeling is aanpasbaar, want het echte schema
+mag afwijken van de GPX-splits.
 
-**Analyse** — laad één tot drie GPX'en, vul per bestand een naam en een
-totaalgewicht in (rijder + fiets + bagage), kies de dag en druk op
-Analyseer. Je krijgt:
+**Analyse** — laad één tot drie GPX'en, kies de dag en druk op Analyseer.
+Naam en gewicht worden voorgevuld uit de `RIDERS`-constante, in de volgorde
+waarin je de bestanden kiest — dus even controleren of Sybren ook echt
+Sybren is. Je krijgt:
 
 - **Lossingen.** De sporen worden naast elkaar gelegd op de afstand-as, niet
   op de tijd-as. Een breuk is een tijdgat boven 20 s dat langer dan een
@@ -81,8 +86,21 @@ Analyseer. Je krijgt:
   meelevert, aankomstvolgorde, en de spreiding in snelheid als proxy voor
   wie zat te accelereren aan kop.
 
-**Klassement** — cumulatief over de dagen. Punten in `POINTS`, bovenaan het
-scriptblok:
+**Klassement** — cumulatief over de dagen.
+
+De rijders staan bovenaan hetzelfde scriptblok. Het gewicht is rijder +
+fiets + bagage; de virtuele watts hangen eraan, dus vul het echte gewicht in
+zodra je het gewogen hebt:
+
+```js
+const RIDERS = [
+  { naam: "Sybren", gewicht: 85 },
+  { naam: "Luuk", gewicht: 85 },
+  { naam: "Thijmen", gewicht: 85 }
+];
+```
+
+Punten in `POINTS`, daar vlak onder:
 
 ```js
 const POINTS = {

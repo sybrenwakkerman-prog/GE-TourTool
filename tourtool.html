@@ -148,6 +148,10 @@ ul.plain li:last-child{border-bottom:0}
       <div><label for="etaDay">Dag</label><select id="etaDay"></select></div>
       <div><label for="etaKm">Huidige km</label><input type="number" id="etaKm" step="0.1" inputmode="decimal"></div>
     </div>
+    <div class="row" style="margin-top:.6rem">
+      <div><label for="etaRider">Ik ben</label><select id="etaRider"></select></div>
+      <div><label for="etaMass">Gewicht kg</label><input type="number" id="etaMass" step="0.5" inputmode="decimal"></div>
+    </div>
     <div style="margin-top:.5rem"><button class="btn sec" id="btnGeo">Bepaal km via GPS</button></div>
     <div id="geoOut" class="est" style="margin-top:.35rem"></div>
     <div class="row" style="margin-top:.6rem">
@@ -586,6 +590,16 @@ const CFG = {
   climbGrade: 3.0,      // vanaf dit percentage heet het klimmen (ETA)
   searchRadiusM: 1200   // zoekstraal bij projecteren op de route
 };
+
+// Wie er meerijdt. De volgorde bepaalt de kleur, en bij het inladen van
+// GPX'en worden naam en gewicht hieruit voorgevuld - scheelt elke avond
+// hetzelfde intikken. Gewicht is rijder + fiets + bagage; pas het aan
+// zodra je het echt gewogen hebt, want de virtuele watts hangen eraan.
+const RIDERS = [
+  { naam: "Sybren", gewicht: 85 },
+  { naam: "Luuk", gewicht: 85 },
+  { naam: "Thijmen", gewicht: 85 }
+];
 
 const RIDER_COLORS = ["#38bdf8", "#fb923c", "#a3e635"];
 
@@ -2260,7 +2274,7 @@ $("btnEta").addEventListener("click", () => {
     return;
   }
 
-  const massKg = state.files.length && state.files[0].gewicht ? state.files[0].gewicht : 85;
+  const massKg = parseFloat($("etaMass").value) || 85;
   const measured = state.analysis && state.analysis.measured ? state.analysis.measured : null;
   const eta = etaCalc({
     fromKm: from, toKm: to, elapsedS, massKg,
@@ -2346,8 +2360,10 @@ $("gpxIn").addEventListener("change", e => {
   const files = [...e.target.files].slice(0, 3);
   state.files = files.map((f, i) => ({
     file: f,
-    naam: f.name.replace(/\.gpx$/i, "").replace(/[_-]/g, " ").slice(0, 24),
-    gewicht: 85
+    // Voorvullen uit RIDERS; de volgorde waarin je de bestanden kiest
+    // bepaalt wie wie is, dus controleer het even.
+    naam: RIDERS[i] ? RIDERS[i].naam : f.name.replace(/\.gpx$/i, "").replace(/[_-]/g, " ").slice(0, 24),
+    gewicht: RIDERS[i] ? RIDERS[i].gewicht : 85
   }));
   renderFileList();
   $("btnAnalyse").disabled = state.files.length === 0;
@@ -2726,6 +2742,19 @@ $("btnSelfTest").addEventListener("click", () => {
 });
 
 /* ------------------------------ start ------------------------------ */
+
+// Wie ben jij: bepaalt alleen welk gewicht het ETA-model gebruikt.
+RIDERS.forEach((r, i) => {
+  const o = el("option", null, r.naam);
+  o.value = String(i);
+  $("etaRider").appendChild(o);
+});
+$("etaRider").addEventListener("change", () => {
+  const r = RIDERS[parseInt($("etaRider").value, 10)];
+  if (r) $("etaMass").value = r.gewicht;
+});
+$("etaRider").value = "0";
+$("etaMass").value = RIDERS[0].gewicht;
 
 $("routeSub").textContent = ROUTE_META.totalKm + " km · +" + ROUTE_META.gainM + " hm · top " + ROUTE_META.maxEleM + " m";
 fillDaySelects();
