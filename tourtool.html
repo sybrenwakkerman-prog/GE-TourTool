@@ -24,6 +24,7 @@ body{
 h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
 h2{font-size:1.05rem;margin-bottom:.5rem}
 h3{font-size:.9rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:1.2rem 0 .5rem}
+h3.seg{text-transform:none;letter-spacing:0;color:var(--fg);font-size:.95rem}
 p{margin:.4rem 0}
 small{color:var(--dim)}
 code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em}
@@ -34,9 +35,9 @@ header{
   border-bottom:1px solid var(--line);
   padding:calc(.6rem + env(safe-area-inset-top)) .8rem .5rem;
 }
-.brand{display:flex;align-items:baseline;gap:.5rem;margin-bottom:.55rem}
+.brand{margin-bottom:.55rem}
 .brand h1{font-size:1.15rem}
-.brand span{font-size:.78rem;color:var(--dim2)}
+.brand span{display:block;font-size:.75rem;color:var(--dim2);margin-top:.1rem}
 nav{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
 nav button{
   min-height:var(--tap); border:1px solid var(--line); background:var(--panel);
@@ -69,7 +70,10 @@ button.btn.sec{background:var(--panel2);color:var(--fg);border:1px solid var(--l
 button.btn.danger{background:var(--bad);color:#fff}
 button.btn:disabled{opacity:.45;cursor:not-allowed}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
-.filebtn{position:relative;overflow:hidden;display:block}
+/* Een <label> als knop. De generieke label-regel hierboven slaat hem
+   anders plat tot grijze minitekst, dus die zetten we hier terug. */
+.filebtn{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;
+  text-align:center;font-size:1rem;font-weight:700;color:var(--fg);margin-bottom:0;line-height:1.2}
 .filebtn input[type=file]{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
 
 /* ---- data ---- */
@@ -119,6 +123,10 @@ hr{border:0;border-top:1px solid var(--line);margin:.9rem 0}
 ul.plain{list-style:none;padding:0;margin:.3rem 0}
 ul.plain li{padding:.3rem 0;border-bottom:1px solid var(--line);font-size:.9rem}
 ul.plain li:last-child{border-bottom:0}
+.dayrow{padding:.5rem 0;border-bottom:1px solid var(--line)}
+.dayrow:last-child{border-bottom:0}
+.dayhead{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;margin-bottom:.35rem}
+.dayhead span{font-size:.82rem;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -161,7 +169,7 @@ ul.plain li:last-child{border-bottom:0}
 
   <div class="card">
     <h2>Restprofiel</h2>
-    <div class="chartwrap"><svg id="svgRest" viewBox="0 0 1000 240" preserveAspectRatio="none" aria-label="Hoogteprofiel resterend"></svg></div>
+    <div class="chartwrap"><svg id="svgRest" viewBox="0 0 1000 430" aria-label="Hoogteprofiel resterend"></svg></div>
     <div id="restInfo" class="est" style="margin-top:.4rem"></div>
   </div>
 
@@ -201,7 +209,7 @@ ul.plain li:last-child{border-bottom:0}
 
     <div class="card">
       <h2>Lossingen</h2>
-      <div class="chartwrap"><svg id="svgGap" viewBox="0 0 1000 320" aria-label="Tijdgat per kilometer"></svg></div>
+      <div class="chartwrap"><svg id="svgGap" viewBox="0 0 1000 520" aria-label="Tijdgat per kilometer"></svg></div>
       <div id="gapLegend" class="est" style="margin:.4rem 0 .6rem"></div>
       <div id="splitsOut"></div>
     </div>
@@ -596,10 +604,11 @@ function fmtDur(s) {
                     : m + ":" + String(r).padStart(2, "0");
   return (neg ? "-" : "") + out;
 }
-// Voor lopende tekst: "3 min 42 s".
+// Voor lopende tekst: "3 min 42 s", of "2 u 15 min" als het lang duurt.
 function fmtDurWords(s) {
   s = Math.round(s);
-  const m = Math.floor(s / 60), r = s % 60;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  if (h > 0) return h + " u " + m + " min";
   if (m === 0) return r + " s";
   return m + " min " + String(r).padStart(2, "0") + " s";
 }
@@ -1454,8 +1463,13 @@ function measuredSpeeds(r) {
  * of je in het donker aankomt.
  */
 function sunsetMs(date, lat, lon) {
-  const jd = date.getTime() / 86400000 + 2440587.5;
-  const n = Math.ceil(jd - 2451545.0 + 0.0008);
+  // Anker op de plaatselijke middag van de kalenderdag die je meegeeft.
+  // Rechtstreeks afronden op het meegegeven moment gaat mis: dan verspringt
+  // de dagteller om 12:00 UTC, precies midden op een fietsdag, en krijg je
+  // de zonsondergang van morgen te zien.
+  const noon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+  const jd = noon.getTime() / 86400000 + 2440587.5;
+  const n = Math.round(jd - 2451545.0 + 0.0008 - lon / 360);
   const Js = n - lon / 360;
   const M = (357.5291 + 0.98560028 * Js) % 360;
   const Mr = M * DEG;
@@ -1655,15 +1669,26 @@ function runSelfTest() {
   {
     // Zonsondergang Ljubljana, langste dag. Bekende waarde: 20:59 lokaal
     // = 18:59 UTC.
-    const ms = sunsetMs(new Date(Date.UTC(2026, 5, 21, 12)), 46.05, 14.51);
+    const ms = sunsetMs(new Date(2026, 5, 21, 12), 46.05, 14.51);
     const d = new Date(ms);
-    const minsUTC = d.getUTCHours() * 60 + d.getUTCMinutes();
-    near("zonsondergang 21 juni Ljubljana", minsUTC, 18 * 60 + 59, 6, " min");
+    near("zonsondergang 21 juni Ljubljana", d.getUTCHours() * 60 + d.getUTCMinutes(), 18 * 60 + 59, 6, " min");
 
     // Kortste dag, ter controle dat het meebeweegt.
-    const ms2 = sunsetMs(new Date(Date.UTC(2026, 11, 21, 12)), 46.05, 14.51);
+    const ms2 = sunsetMs(new Date(2026, 11, 21, 12), 46.05, 14.51);
     const d2 = new Date(ms2);
     near("zonsondergang 21 december Ljubljana", d2.getUTCHours() * 60 + d2.getUTCMinutes(), 15 * 60 + 22, 8, " min");
+
+    // En de dag zelf. Hier ging het eerder mis: de dagteller versprong om
+    // 12:00 UTC, zodat je vanaf het middaguur de zonsondergang van morgen
+    // te zien kreeg - juist op het moment dat je hem nodig hebt.
+    let dagOk = true, mis = "";
+    for (const uur of [0, 6, 11, 12, 13, 18, 21]) {
+      const t = new Date(2026, 7, 13, uur, 30);
+      const z = new Date(sunsetMs(t, 46.30, 14.29));
+      if (z.getDate() !== 13 || z.getMonth() !== 7) { dagOk = false; mis += " " + uur + "u->" + z.toDateString(); }
+    }
+    ok("zonsondergang valt op de gevraagde dag, elk uur van de dag", dagOk,
+      dagOk ? "00:30 tot 21:30 geven alle 13 augustus" : "mis:" + mis);
 
     // Watts: 75 kg totaal, 1000 m klimmen over 10 km in 45 min.
     const w = virtualWatts(75, 10000, 1000, 2700, 800);
@@ -1860,7 +1885,861 @@ function runSelfTest() {
   return A;
 }
 
-// ---MARK---
+/* ================================ UI ==============================
+   Alles hieronder raakt de DOM. De analyse hierboven doet dat niet, zodat
+   die los te draaien is (zie tests/run.js).
+   ================================================================== */
+if (typeof document !== "undefined") (function () {
+
+const $ = id => document.getElementById(id);
+const el = (tag, cls, txt) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  return e;
+};
+
+// Alle stand van zaken. Leeft alleen in het geheugen: geen localStorage,
+// dus wat je niet exporteert ben je kwijt als je dit tabblad sluit.
+const state = {
+  days: DEFAULT_DAYS.map(d => Object.assign({}, d)),
+  segments: DEFAULT_SEGMENTS.map(s => Object.assign({}, s)),
+  files: [],            // {file, naam, gewicht}
+  analysis: null,
+  scored: [],           // uitslagen per dag voor het klassement
+  etaKm: null
+};
+
+/* ---------------------------- tabs -------------------------------- */
+const TABS = ["vandaag", "analyse", "klassement"];
+TABS.forEach(t => $("tab-" + t).addEventListener("click", () => showTab(t)));
+function showTab(t) {
+  TABS.forEach(x => {
+    $("tab-" + x).setAttribute("aria-selected", String(x === t));
+    $("p-" + x).hidden = x !== t;
+  });
+  window.scrollTo(0, 0);
+  if (t === "vandaag") { drawRest(); drawMap(); }
+}
+
+/* --------------------------- SVG-tekenwerk ------------------------- */
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function svgEl(name, attrs) {
+  const e = document.createElementNS(SVGNS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+// Hoogte uit de viewBox, zodat de maten in de markup staan en niet hier.
+function svgHeight(svg, fallback) {
+  const vb = (svg.getAttribute("viewBox") || "").split(/\s+/);
+  const h = parseFloat(vb[3]);
+  return isFinite(h) ? h : fallback;
+}
+
+/**
+ * Hoogteprofiel als handgetekend pad. Geen chartlibrary: het is een
+ * polygoon over de route-array en wat lijnen erbij.
+ */
+function drawProfile(svg, kmFrom, kmTo, opts) {
+  opts = opts || {};
+  clear(svg);
+  const W = 1000, H = svgHeight(svg, 430), PAD_B = 42, PAD_T = 18;
+  const m0 = kmFrom * 1000, m1 = kmTo * 1000;
+  if (m1 <= m0) return;
+
+  const i0 = routeIndexAt(m0), i1 = routeIndexAt(m1);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = i0; i <= i1; i++) { lo = Math.min(lo, RT.ele[i]); hi = Math.max(hi, RT.ele[i]); }
+  lo = Math.min(lo, routeEleAt(m0), routeEleAt(m1));
+  hi = Math.max(hi, routeEleAt(m0), routeEleAt(m1));
+  if (hi - lo < 50) { hi = lo + 50; }
+  const pad = (hi - lo) * 0.08;
+  lo -= pad; hi += pad;
+
+  const X = m => (m - m0) / (m1 - m0) * W;
+  const Y = e => PAD_T + (1 - (e - lo) / (hi - lo)) * (H - PAD_T - PAD_B);
+
+  // steilheid als kleurband onderaan: rood is boeien
+  for (let i = i0; i < i1; i++) {
+    const d = RT.m[i + 1] - RT.m[i];
+    if (d <= 0) continue;
+    const g = (RT.ele[i + 1] - RT.ele[i]) / d * 100;
+    if (g < 2) continue;
+    const c = g >= 9 ? "#ef4444" : g >= 6 ? "#f59e0b" : "#eab308";
+    svg.appendChild(svgEl("rect", {
+      x: X(RT.m[i]), y: H - PAD_B - 5, width: Math.max(0.6, X(RT.m[i + 1]) - X(RT.m[i])),
+      height: 5, fill: c, opacity: .85
+    }));
+  }
+
+  let d = "M " + X(m0) + " " + Y(routeEleAt(m0));
+  for (let i = i0 + 1; i <= i1; i++) d += " L " + X(RT.m[i]) + " " + Y(RT.ele[i]);
+  d += " L " + X(m1) + " " + Y(routeEleAt(m1));
+  const area = d + " L " + W + " " + (H - PAD_B) + " L 0 " + (H - PAD_B) + " Z";
+  svg.appendChild(svgEl("path", { d: area, fill: "#38bdf8", opacity: .16 }));
+  svg.appendChild(svgEl("path", { d, fill: "none", stroke: "#38bdf8", "stroke-width": 2.5, "stroke-linejoin": "round" }));
+
+  // strijdsegmenten markeren
+  for (const s of state.segments) {
+    if (s.endKm * 1000 < m0 || s.startKm * 1000 > m1) continue;
+    const a = X(clamp(s.startKm * 1000, m0, m1)), b = X(clamp(s.endKm * 1000, m0, m1));
+    svg.appendChild(svgEl("rect", { x: a, y: PAD_T, width: Math.max(1, b - a), height: H - PAD_T - PAD_B, fill: "#ffb703", opacity: .12 }));
+    const t = svgEl("text", { x: (a + b) / 2, y: PAD_T + 22, fill: "#ffb703", "font-size": 26, "text-anchor": "middle", "font-weight": 600 });
+    t.textContent = s.name;
+    svg.appendChild(t);
+  }
+  // huidige positie
+  if (opts.markKm != null && opts.markKm * 1000 >= m0 && opts.markKm * 1000 <= m1) {
+    const x = X(opts.markKm * 1000);
+    svg.appendChild(svgEl("line", { x1: x, y1: PAD_T, x2: x, y2: H - PAD_B, stroke: "#fff", "stroke-width": 2, "stroke-dasharray": "5 4" }));
+  }
+  // as
+  svg.appendChild(svgEl("line", { x1: 0, y1: H - PAD_B, x2: W, y2: H - PAD_B, stroke: "#2c343e", "stroke-width": 1.5 }));
+  const stap = niceStep((kmTo - kmFrom) / 6);
+  for (let k = Math.ceil(kmFrom / stap) * stap; k <= kmTo; k += stap) {
+    const x = X(k * 1000);
+    svg.appendChild(svgEl("line", { x1: x, y1: H - PAD_B, x2: x, y2: H - PAD_B + 4, stroke: "#6c7987" }));
+    const t = svgEl("text", { x, y: H - 7, fill: "#9aa7b4", "font-size": 24, "text-anchor": "middle" });
+    t.textContent = Math.round(k);
+    svg.appendChild(t);
+  }
+  for (const e of [lo + pad, hi - pad]) {
+    const t = svgEl("text", { x: 6, y: Y(e) - 6, fill: "#9aa7b4", "font-size": 22 });
+    t.textContent = Math.round(e) + " m";
+    svg.appendChild(t);
+  }
+}
+function niceStep(x) {
+  const p = Math.pow(10, Math.floor(Math.log10(Math.max(1e-9, x))));
+  const n = x / p;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+}
+
+/** Routekaart als SVG-polyline. Geen tegels, geen netwerk. */
+function drawMap(marks) {
+  const svg = $("svgMap");
+  clear(svg);
+  const W = 1000, H = 700, P = 24;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < RT.n; i++) {
+    x0 = Math.min(x0, RT.x[i]); x1 = Math.max(x1, RT.x[i]);
+    y0 = Math.min(y0, RT.y[i]); y1 = Math.max(y1, RT.y[i]);
+  }
+  const sc = Math.min((W - 2 * P) / (x1 - x0), (H - 2 * P) / (y1 - y0));
+  const ox = (W - (x1 - x0) * sc) / 2, oy = (H - (y1 - y0) * sc) / 2;
+  const PX = x => (x - x0) * sc + ox;
+  const PY = y => H - ((y - y0) * sc + oy);      // noord boven
+
+  // dagen elk hun eigen tint
+  const kleuren = ["#38bdf8", "#a3e635", "#fb923c", "#f472b6", "#c084fc"];
+  state.days.forEach((day, di) => {
+    const a = routeIndexAt(day.startKm * 1000), b = routeIndexAt(day.endKm * 1000);
+    let d = "";
+    for (let i = a; i <= b; i++) d += (i === a ? "M " : " L ") + fmt1(PX(RT.x[i])) + " " + fmt1(PY(RT.y[i]));
+    svg.appendChild(svgEl("path", { d, fill: "none", stroke: kleuren[di % kleuren.length], "stroke-width": 3, "stroke-linejoin": "round", "stroke-linecap": "round", opacity: .9 }));
+  });
+
+  // start/finish
+  const s = routePosAt(0);
+  svg.appendChild(svgEl("circle", { cx: PX(toX(s.lon)), cy: PY(toY(s.lat)), r: 8, fill: "#fff", stroke: "#0b0d10", "stroke-width": 3 }));
+
+  // strijdsegmenten als toppen
+  for (const seg of state.segments) {
+    const p = routePosAt((seg.startKm + seg.endKm) / 2 * 1000);
+    svg.appendChild(svgEl("circle", { cx: PX(toX(p.lon)), cy: PY(toY(p.lat)), r: 5, fill: "#ffb703" }));
+  }
+  // rijders of huidige positie
+  for (const mk of (marks || [])) {
+    const p = routePosAt(mk.km * 1000);
+    svg.appendChild(svgEl("circle", { cx: PX(toX(p.lon)), cy: PY(toY(p.lat)), r: 9, fill: mk.color, stroke: "#0b0d10", "stroke-width": 3 }));
+  }
+  $("mapInfo").textContent = state.days.map((d, i) =>
+    d.label + " " + fmt1(d.endKm - d.startKm) + " km").join("  ·  ");
+}
+
+/** Tijdgat per kilometer, een lijn per rijder, splits gearceerd. */
+function drawGapChart(an) {
+  const svg = $("svgGap");
+  clear(svg);
+  const W = 1000, H = svgHeight(svg, 520), PAD_L = 78, PAD_B = 44, PAD_T = 16;
+  const km0 = an.kmFrom, km1 = an.kmTo;
+  let gMax = 30;
+  for (const s of an.series) for (const p of s) gMax = Math.max(gMax, p.gap);
+  gMax *= 1.1;
+
+  const X = km => PAD_L + (km - km0) / (km1 - km0) * (W - PAD_L - 8);
+  const Y = g => PAD_T + g / gMax * (H - PAD_T - PAD_B);
+
+  // splits als vlak
+  for (const sp of an.splits) {
+    const a = X(sp.kmStart), b = X(sp.kmEnd == null ? km1 : sp.kmEnd);
+    svg.appendChild(svgEl("rect", { x: a, y: PAD_T, width: Math.max(2, b - a), height: H - PAD_T - PAD_B, fill: "#ef4444", opacity: .13 }));
+  }
+  // rasterlijnen
+  const stap = niceStep(gMax / 4);
+  for (let g = 0; g <= gMax; g += stap) {
+    svg.appendChild(svgEl("line", { x1: PAD_L, y1: Y(g), x2: W - 8, y2: Y(g), stroke: "#2c343e", "stroke-width": 1 }));
+    const t = svgEl("text", { x: PAD_L - 8, y: Y(g) + 8, fill: "#9aa7b4", "font-size": 24, "text-anchor": "end" });
+    // minuten, niet mm:ss - "8:20" op een gat-as leest als een kloktijd
+    t.textContent = g >= 90 ? Math.round(g / 60) + " min" : Math.round(g) + " s";
+    svg.appendChild(t);
+  }
+  // km-as
+  const kstap = niceStep((km1 - km0) / 6);
+  for (let k = Math.ceil(km0 / kstap) * kstap; k <= km1; k += kstap) {
+    const t = svgEl("text", { x: X(k), y: H - 8, fill: "#9aa7b4", "font-size": 24, "text-anchor": "middle" });
+    t.textContent = Math.round(k);
+    svg.appendChild(t);
+  }
+  // lijnen
+  an.series.forEach((serie, i) => {
+    if (!serie.length) return;
+    let d = "";
+    let pen = false;
+    for (const p of serie) {
+      if (p.km < km0 || p.km > km1) { pen = false; continue; }
+      d += (pen ? " L " : " M ") + fmt1(X(p.km)) + " " + fmt1(Y(clamp(p.gap, 0, gMax)));
+      pen = true;
+    }
+    svg.appendChild(svgEl("path", { d, fill: "none", stroke: an.riders[i].color, "stroke-width": 2.4, "stroke-linejoin": "round" }));
+  });
+  $("gapLegend").innerHTML = an.riders.map(r =>
+    '<span class="dot" style="background:' + r.color + '"></span>' + esc(r.name)).join(" &nbsp; ") +
+    ' &nbsp; <span class="muted">tijdgat t.o.v. de snelste op dat punt, naar beneden is verliezen</span>';
+}
+
+/* --------------------------- dagindeling --------------------------- */
+
+function renderDayEditor() {
+  const box = $("dayEditor");
+  clear(box);
+  state.days.forEach((d, i) => {
+    const blok = el("div", "dayrow");
+    const kop = el("div", "dayhead");
+    kop.appendChild(el("b", null, d.label));
+    kop.appendChild(el("span", "muted",
+      fmt1(d.endKm - d.startKm) + " km  ·  +" + Math.round(routeGain(d.startKm * 1000, d.endKm * 1000)) + " hm"));
+    blok.appendChild(kop);
+    const row = el("div", "row");
+    for (const k of ["startKm", "endKm"]) {
+      const w = el("div");
+      w.appendChild(el("label", null, k === "startKm" ? "van km" : "tot km"));
+      const inp = el("input");
+      inp.type = "number"; inp.step = "0.1"; inp.value = fmt1(d[k]);
+      inp.inputMode = "decimal";
+      inp.addEventListener("change", () => {
+        const v = parseFloat(inp.value);
+        if (!isFinite(v)) return;
+        d[k] = clamp(v, 0, ROUTE_META.totalKm);
+        // buren meetrekken zodat er geen gaten of overlap ontstaan
+        if (k === "endKm" && state.days[i + 1]) state.days[i + 1].startKm = d.endKm;
+        if (k === "startKm" && state.days[i - 1]) state.days[i - 1].endKm = d.startKm;
+        refreshDays();
+      });
+      w.appendChild(inp);
+      row.appendChild(w);
+    }
+    blok.appendChild(row);
+    box.appendChild(blok);
+  });
+}
+function refreshDays() {
+  renderDayEditor(); fillDaySelects(); drawRest(); drawMap();
+}
+function fillDaySelects() {
+  for (const id of ["etaDay", "anDay"]) {
+    const sel = $(id), keep = sel.value;
+    clear(sel);
+    state.days.forEach((d, i) => {
+      const o = el("option", null, d.label + "  (km " + fmt1(d.startKm) + "-" + fmt1(d.endKm) + ")");
+      o.value = String(i);
+      sel.appendChild(o);
+    });
+    sel.value = keep && keep < state.days.length ? keep : "0";
+  }
+}
+$("btnDayReset").addEventListener("click", () => {
+  state.days = DEFAULT_DAYS.map(d => Object.assign({}, d));
+  refreshDays();
+});
+$("btnDayEven").addEventListener("click", () => {
+  const n = state.days.length, tot = ROUTE_META.totalKm;
+  state.days = state.days.map((d, i) => ({
+    label: d.label,
+    startKm: Math.round(tot / n * i * 10) / 10,
+    endKm: Math.round(tot / n * (i + 1) * 10) / 10
+  }));
+  state.days[n - 1].endKm = tot;
+  refreshDays();
+});
+
+/* ------------------------------ ETA -------------------------------- */
+
+function curDay() { return state.days[parseInt($("etaDay").value, 10) || 0]; }
+
+function drawRest() {
+  const d = curDay();
+  if (!d) return;
+  const from = state.etaKm != null ? clamp(state.etaKm, d.startKm, d.endKm) : d.startKm;
+  const to = parseFloat($("etaTarget").value);
+  const end = isFinite(to) ? to : d.endKm;
+  drawProfile($("svgRest"), from, Math.max(from + 1, end), { markKm: state.etaKm });
+  const gain = routeGain(from * 1000, end * 1000);
+  $("restInfo").textContent = "Nog " + fmt1(end - from) + " km en +" + Math.round(gain) +
+    " hm. Steilste stukken rood onderaan.";
+}
+
+$("etaDay").addEventListener("change", () => {
+  const d = curDay();
+  $("etaTarget").value = fmt1(d.endKm);
+  if (state.etaKm == null || state.etaKm < d.startKm || state.etaKm > d.endKm) {
+    $("etaKm").value = fmt1(d.startKm);
+    state.etaKm = d.startKm;
+  }
+  drawRest(); drawMap();
+});
+$("etaKm").addEventListener("input", () => {
+  const v = parseFloat($("etaKm").value);
+  state.etaKm = isFinite(v) ? v : null;
+  drawRest();
+  drawMap(state.etaKm != null ? [{ km: state.etaKm, color: "#fff" }] : []);
+});
+$("etaTarget").addEventListener("input", drawRest);
+
+$("btnGeo").addEventListener("click", () => {
+  const out = $("geoOut");
+  if (!navigator.geolocation) { out.textContent = "Deze browser geeft geen locatie."; return; }
+  out.textContent = "Bezig met zoeken...";
+  navigator.geolocation.getCurrentPosition(pos => {
+    const pr = projectToRoute(pos.coords.latitude, pos.coords.longitude, null);
+    state.etaKm = pr.m / 1000;
+    $("etaKm").value = fmt1(state.etaKm);
+    out.textContent = "km " + fmt1(state.etaKm) + ", " + Math.round(pr.dist) + " m van de route" +
+      (pr.dist > CFG.offRouteM ? " - dat is ver genoeg naast de route om te twijfelen" : "") +
+      ". Hoogte hier: " + Math.round(routeEleAt(pr.m)) + " m.";
+    drawRest();
+    drawMap([{ km: state.etaKm, color: "#fff" }]);
+  }, err => {
+    out.textContent = "Geen locatie gekregen (" + err.message + "). Vul de km met de hand in.";
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+});
+
+function parseHM(s) {
+  if (!s) return null;
+  const m = String(s).trim().match(/^(\d+)[:.,h ]?(\d{1,2})?$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 3600 + (m[2] ? parseInt(m[2], 10) : 0) * 60;
+}
+
+$("btnEta").addEventListener("click", () => {
+  const d = curDay();
+  const from = parseFloat($("etaKm").value);
+  const to = parseFloat($("etaTarget").value);
+  const box = $("etaScenarios"), det = $("etaDetail");
+  $("etaCard").hidden = false;
+  clear(box); clear(det);
+
+  if (!isFinite(from) || !isFinite(to) || to <= from) {
+    box.appendChild(note("bad", "Vul een huidige km en een eindpunt in dat verderop ligt."));
+    return;
+  }
+  // vertrektijd en verstreken tijd
+  const dateStr = $("etaDate").value, startStr = $("etaStart").value;
+  let startMs = null;
+  if (dateStr && startStr) {
+    const [h, mi] = startStr.split(":").map(Number);
+    const [Y, M, D] = dateStr.split("-").map(Number);
+    startMs = new Date(Y, M - 1, D, h, mi).getTime();
+  }
+  let elapsedS = parseHM($("etaElapsed").value);
+  if (elapsedS == null && startMs != null) elapsedS = (Date.now() - startMs) / 1000;
+  if (elapsedS == null || elapsedS <= 0) {
+    box.appendChild(note("bad", "Vul in hoe lang je onderweg bent (bijvoorbeeld 3:20), of zet een starttijd."));
+    return;
+  }
+
+  const massKg = state.files.length && state.files[0].gewicht ? state.files[0].gewicht : 85;
+  const measured = state.analysis && state.analysis.measured ? state.analysis.measured : null;
+  const eta = etaCalc({
+    fromKm: from, toKm: to, elapsedS, massKg,
+    dayStartKm: d.startKm, measured
+  });
+  if (eta.error) { box.appendChild(note("bad", eta.error)); return; }
+
+  // zonsondergang op het eindpunt
+  const p = routePosAt(to * 1000);
+  const nowMs = startMs != null ? startMs + elapsedS * 1000 : Date.now();
+  const sun = sunsetMs(new Date(nowMs), p.lat, p.lon);
+
+  const scen = [
+    { naam: "Zonder stops", extra: 0 },
+    { naam: "Met 20 min koffie", extra: 20 * 60 },
+    { naam: "Met 45 min lunch", extra: 45 * 60 }
+  ];
+  const grid = el("div", "stack");
+  for (const s of scen) {
+    const arrive = nowMs + (eta.remainS + s.extra) * 1000;
+    const laat = sun != null && arrive > sun;
+    const c = el("div", "stat");
+    c.appendChild(el("span", null, s.naam));
+    const b = el("div", "big" + (laat ? " bad" : " ok"), fmtClock(arrive));
+    c.appendChild(b);
+    c.appendChild(el("small", null, "+" + fmtDur(eta.remainS + s.extra) + " rijden"));
+    grid.appendChild(c);
+  }
+  box.appendChild(grid);
+
+  if (sun != null) {
+    const zon = el("p");
+    zon.innerHTML = "Zon onder om <b>" + fmtClock(sun) + "</b> bij km " + fmt1(to) +
+      ". <span class='est'>Astronomisch berekend, geen weerbericht.</span>";
+    box.appendChild(zon);
+    const marge = (sun - (nowMs + eta.remainS * 1000)) / 1000;
+    box.appendChild(note(marge < 0 ? "bad" : marge < 45 * 60 ? "warn" : "ok",
+      marge < 0 ? "Je komt " + fmtDurWords(-marge) + " na zonsondergang aan, ook zonder te stoppen."
+        : "Marge tot zonsondergang: " + fmtDurWords(marge) + " zonder stops."));
+  }
+
+  const rows = [
+    ["Nog te gaan", fmt1(eta.remainKm) + " km, +" + Math.round(eta.remainGainM) + " hm"],
+    ["Rijtijd", fmtDur(eta.remainS)],
+    ["Klimmend (>" + CFG.climbGrade + "%)", eta.vClimb ? fmt1(eta.vClimb) + " km/u" : "-"],
+    ["Overig", eta.vFlat ? fmt1(eta.vFlat) + " km/u" : "-"]
+  ];
+  if (eta.mode === "geschat") {
+    rows.push(["Afgelegd", fmt1(eta.doneKm) + " km, +" + Math.round(eta.doneGainM) + " hm in " + fmtDur(elapsedS)]);
+    rows.push(["Model", Math.round(eta.powerW) + " W geschat"]);
+  }
+  det.appendChild(kvList(rows));
+  det.appendChild(note("", eta.mode === "gemeten"
+    ? "Klim- en vlakke snelheid zijn gemeten uit het spoor dat je hebt ingeladen."
+    : "Uit km-stand en verstreken tijd alleen zijn twee snelheden niet af te leiden. "
+    + "In plaats daarvan is gezocht naar het vermogen dat jouw tijd over het gereden profiel verklaart, "
+    + "en dat is losgelaten op wat er nog komt. Zo weegt een klim zwaarder dan een vlak stuk. Schatting."));
+
+  state.etaKm = from;
+  drawRest();
+  drawMap([{ km: from, color: "#fff" }]);
+});
+
+function note(kind, txt) {
+  const n = el("div", "note" + (kind ? " " + kind : ""), txt);
+  n.style.marginTop = ".6rem";
+  return n;
+}
+function kvList(rows) {
+  const box = el("div");
+  for (const [k, v] of rows) {
+    const r = el("div", "kv");
+    r.appendChild(el("span", null, k));
+    r.appendChild(el("b", null, v));
+    box.appendChild(r);
+  }
+  return box;
+}
+
+/* --------------------------- GPX inladen --------------------------- */
+
+$("gpxIn").addEventListener("change", e => {
+  const files = [...e.target.files].slice(0, 3);
+  state.files = files.map((f, i) => ({
+    file: f,
+    naam: f.name.replace(/\.gpx$/i, "").replace(/[_-]/g, " ").slice(0, 24),
+    gewicht: 85
+  }));
+  renderFileList();
+  $("btnAnalyse").disabled = state.files.length === 0;
+  $("loadMsg").innerHTML = "";
+  if ([...e.target.files].length > 3) {
+    $("loadMsg").appendChild(note("warn", "Er zijn er meer dan drie gekozen; alleen de eerste drie zijn geladen."));
+  }
+});
+
+function renderFileList() {
+  const box = $("fileList");
+  clear(box);
+  state.files.forEach((f, i) => {
+    const card = el("div", "card tight");
+    card.style.marginBottom = ".5rem";
+    card.style.borderLeft = "4px solid " + RIDER_COLORS[i];
+    const nm = el("div", "est", f.file.name);
+    card.appendChild(nm);
+    const row = el("div", "row");
+    const a = el("div");
+    a.appendChild(el("label", null, "Rijder"));
+    const ni = el("input"); ni.type = "text"; ni.value = f.naam;
+    ni.addEventListener("input", () => f.naam = ni.value);
+    a.appendChild(ni);
+    const b = el("div");
+    b.appendChild(el("label", null, "Gewicht kg (rijder + fiets + bagage)"));
+    const wi = el("input"); wi.type = "number"; wi.step = "0.5"; wi.value = f.gewicht; wi.inputMode = "decimal";
+    wi.addEventListener("input", () => f.gewicht = parseFloat(wi.value) || 0);
+    b.appendChild(wi);
+    row.appendChild(a); row.appendChild(b);
+    card.appendChild(row);
+    box.appendChild(card);
+  });
+}
+
+function readFile(f) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = () => rej(new Error("kon " + f.name + " niet lezen"));
+    fr.readAsText(f);
+  });
+}
+
+$("btnAnalyse").addEventListener("click", async () => {
+  const btn = $("btnAnalyse");
+  btn.disabled = true; btn.textContent = "Bezig...";
+  const msg = $("loadMsg");
+  clear(msg);
+  try {
+    const riders = [];
+    for (let i = 0; i < state.files.length; i++) {
+      const f = state.files[i];
+      const txt = await readFile(f.file);
+      let raw;
+      try { raw = parseGPX(txt); }
+      catch (err) { throw new Error(f.file.name + ": " + err.message); }
+      riders.push(buildRider(f.naam || ("Rijder " + (i + 1)), f.gewicht, raw, RIDER_COLORS[i]));
+    }
+    const day = state.days[parseInt($("anDay").value, 10) || 0];
+    const an = analyseDay(riders, day, state.segments);
+    an.measured = measuredSpeeds(riders[0]);
+    state.analysis = an;
+    renderAnalysis(an);
+    $("anResults").hidden = false;
+    msg.appendChild(note("ok", riders.length + " spo" + (riders.length === 1 ? "or" : "ren") + " ingelezen."));
+    $("anResults").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (err) {
+    msg.appendChild(note("bad", err.message));
+  } finally {
+    btn.disabled = false; btn.textContent = "Analyseer";
+  }
+});
+
+/* ------------------------ analyse tonen ---------------------------- */
+
+function renderAnalysis(an) {
+  // controles
+  const cb = $("checksOut");
+  clear(cb);
+  for (const c of an.checks) cb.appendChild(note(c.ok ? "ok" : "bad", c.txt));
+
+  drawGapChart(an);
+
+  // lossingen in tekst
+  const sb = $("splitsOut");
+  clear(sb);
+  if (!an.splits.length) {
+    sb.appendChild(note("ok", "Geen enkele breuk boven " + CFG.splitOpenS + " s. De groep bleef bij elkaar."));
+  } else {
+    for (const s of an.splits) {
+      const d = el("div", "split");
+      const seg = segNameAt(s.kmStart);
+      const kop = an.dayLabel + ", km " + fmt1(s.kmStart) + (seg ? " (" + seg + ")" : "") + ": groep breekt.";
+      d.appendChild(el("div", "hd", kop));
+      const body = el("div", "muted");
+      body.textContent = s.rider + " gelost, " + fmtDurWords(s.durS) +
+        ", maximaal gat " + Math.round(s.maxGapM) + " m (" + Math.round(s.maxGap) + " s)" +
+        (s.kmEnd == null
+          ? ". Niet meer dichtgereden voor het eind van de dag."
+          : ". Weer aangesloten op km " + fmt1(s.kmEnd) + ".");
+      d.appendChild(body);
+      sb.appendChild(d);
+    }
+  }
+
+  // segmenten
+  const gb = $("segOut");
+  clear(gb);
+  if (!an.segs.length) {
+    gb.appendChild(note("", "Geen strijdsegment binnen dit dagdeel."));
+  }
+  for (const seg of an.segs) {
+    const h = el("h3", "seg", seg.name + " — km " + fmt1(seg.startKm) + " tot " + fmt1(seg.endKm) +
+      ", " + fmt1(seg.lengthKm) + " km, +" + Math.round(seg.gainM) + " hm, " + fmt1(seg.grade) + "%");
+    gb.appendChild(h);
+    const t = el("table");
+    const head = ["", "Tijd", "VAM", "km/u"];
+    if (seg.showWatts) head.push("Watt", "W/kg");
+    t.appendChild(trow("th", head));
+    const tb = el("tbody");
+    for (const r of seg.rows) {
+      const cells = [r.pos + ". " + r.rider, fmtDur(r.durS), Math.round(r.vam), fmt1(r.speedKmh)];
+      if (seg.showWatts) cells.push(r.watts ? Math.round(r.watts) : "-", r.wkg ? fmt2(r.wkg) : "-");
+      const tr = trow("td", cells);
+      tr.firstChild.style.color = r.color;
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb);
+    gb.appendChild(t);
+    if (seg.showWatts) {
+      gb.appendChild(el("div", "est",
+        "Watt is een schatting uit zwaartekracht, rolweerstand en lucht (Crr " + PHYS.crr +
+        ", CdA " + PHYS.cda + ", rendement " + PHYS.rendement + "). Geen meting. " +
+        "W/kg is gedeeld door het totaalgewicht dat je hebt ingevuld, niet door lichaamsgewicht."));
+    } else {
+      gb.appendChild(el("div", "est",
+        "Onder " + PHYS.minGrade + "% is een vermogensschatting gokwerk, dus die staat er niet."));
+    }
+  }
+
+  // stops
+  const stb = $("stopOut");
+  clear(stb);
+  const st = el("table");
+  st.appendChild(trow("th", ["", "Totaal", "Rijdend", "Stil", "Stops >2m"]));
+  const stbody = el("tbody");
+  for (const s of an.stops) {
+    const tr = trow("td", [s.rider, fmtDur(s.elapsedS), fmtDur(s.movingS), fmtDur(s.stopS), s.countLong]);
+    tr.firstChild.style.color = s.color;
+    stbody.appendChild(tr);
+  }
+  st.appendChild(stbody);
+  stb.appendChild(st);
+  const langst = an.stops.filter(s => s.longest).sort((a, b) => b.longest.durS - a.longest.durS)[0];
+  if (langst) {
+    stb.appendChild(note("", "Langste enkele stop: " + langst.rider + ", " + fmtDurWords(langst.longest.durS) +
+      (langst.longest.km != null ? " op km " + fmt1(langst.longest.km) : "") +
+      " om " + fmtClock(langst.longest.tStart) + " (" + langst.longest.bron + ")."));
+  }
+  const meest = an.stops.slice().sort((a, b) => b.stopS - a.stopS)[0];
+  if (meest && an.stops.length > 1) {
+    stb.appendChild(note("", "Langst stilgestaan over de hele dag: " + meest.rider + ", " + fmtDur(meest.stopS) + "."));
+  }
+
+  // overig
+  const mb = $("miscOut");
+  clear(mb);
+  const heeftTemp = an.misc.some(m => m.hasTemp);
+  const head = ["", "Aankomst", "Max km/u", "Gem. km/u", "Spreiding"];
+  if (heeftTemp) head.push("Temp");
+  const mt = el("table");
+  mt.appendChild(trow("th", head));
+  const mtb = el("tbody");
+  for (const a of an.arrivals) {
+    const m = an.misc.find(x => x.rider === a.rider);
+    const cells = [a.pos + ". " + a.rider, fmtClock(a.finishMs), fmt1(m.maxKmh), fmt1(m.avgMovingKmh), "±" + fmt1(m.spdStdev)];
+    if (heeftTemp) cells.push(m.hasTemp ? Math.round(m.tempMin) + "–" + Math.round(m.tempMax) + "°" : "-");
+    const tr = trow("td", cells);
+    tr.firstChild.style.color = m.color;
+    mtb.appendChild(tr);
+  }
+  mt.appendChild(mtb);
+  mb.appendChild(mt);
+  const snelste = an.misc.slice().sort((a, b) => b.maxKmh - a.maxKmh)[0];
+  if (snelste && snelste.maxKmhAtKm != null) {
+    mb.appendChild(el("div", "est", "Hoogste snelheid: " + snelste.rider + ", " +
+      fmt1(snelste.maxKmh) + " km/u op km " + fmt1(snelste.maxKmhAtKm) + "."));
+  }
+  const wisselend = an.misc.slice().sort((a, b) => b.spdStdev - a.spdStdev)[0];
+  if (wisselend && an.misc.length > 1) {
+    mb.appendChild(el("div", "est", "Grootste spreiding in snelheid: " + wisselend.rider +
+      " (±" + fmt1(wisselend.spdStdev) + " km/u). Wie constant aan het versnellen was, zit hier bovenaan."));
+  }
+  if (!heeftTemp) mb.appendChild(el("div", "est", "Geen temperatuur in deze bestanden."));
+}
+
+function segNameAt(km) {
+  for (const s of state.segments) if (km >= s.startKm - 0.3 && km <= s.endKm + 0.3) return s.name;
+  return null;
+}
+function trow(tag, cells) {
+  const tr = el("tr");
+  for (const c of cells) tr.appendChild(el(tag, null, String(c)));
+  return tr;
+}
+
+/* --------------------------- klassement ---------------------------- */
+
+$("btnToStanding").addEventListener("click", () => {
+  const msg = $("toStandingMsg");
+  clear(msg);
+  if (!state.analysis) { msg.appendChild(note("bad", "Analyseer eerst een dag.")); return; }
+  const sc = scoreDay(state.analysis);
+  const bestaand = state.scored.findIndex(d => d.dayLabel === sc.dayLabel);
+  if (bestaand >= 0) state.scored[bestaand] = sc; else state.scored.push(sc);
+  state.scored.sort((a, b) => a.kmFrom - b.kmFrom);
+  renderStandings();
+  msg.appendChild(note("ok", sc.dayLabel + " staat in het klassement" +
+    (bestaand >= 0 ? " (de vorige uitslag van die dag is vervangen)." : ".")));
+});
+
+function renderStandings() {
+  const box = $("standOut");
+  clear(box);
+  if (!state.scored.length) {
+    box.appendChild(note("", "Nog geen dag toegevoegd. Analyseer een dag en druk op 'Voeg dag toe', of importeer een eerder bestand."));
+  } else {
+    const st = standings(state.scored);
+    const t = el("table");
+    t.appendChild(trow("th", ["", "Rijder"].concat(state.scored.map(d => d.dayLabel.replace("Dag ", "D"))).concat(["Totaal"])));
+    const tb = el("tbody");
+    st.forEach((r, i) => {
+      const cells = [i + 1 + ".", r.rider];
+      for (const d of state.scored) {
+        const p = d.pts[r.rider];
+        cells.push(p == null ? "-" : (p > 0 ? "+" : "") + p);
+      }
+      cells.push((r.p > 0 ? "+" : "") + r.p);
+      const tr = trow("td", cells);
+      tr.lastChild.style.fontWeight = "700";
+      if (i === 0) tr.lastChild.style.color = "var(--accent)";
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    box.appendChild(t);
+  }
+
+  const db = $("standDays");
+  clear(db);
+  if (!state.scored.length) db.appendChild(el("p", "muted", "Nog niets."));
+  for (const d of state.scored) {
+    const det = el("details");
+    const s = el("summary", null, d.dayLabel + " — km " + fmt1(d.kmFrom) + " tot " + fmt1(d.kmTo) + "  ·  " + d.date);
+    det.appendChild(s);
+    for (const naam of d.riders) {
+      const h = el("div");
+      h.style.marginTop = ".4rem";
+      h.innerHTML = "<b>" + esc(naam) + "</b> " + (d.pts[naam] > 0 ? "+" : "") + d.pts[naam];
+      det.appendChild(h);
+      const ul = el("ul", "plain");
+      for (const w of d.why[naam]) {
+        ul.appendChild(el("li", null, (w.p > 0 ? "+" : "") + w.p + "  " + w.reden));
+      }
+      if (!d.why[naam].length) ul.appendChild(el("li", "muted", "niets gescoord"));
+      det.appendChild(ul);
+    }
+    db.appendChild(det);
+  }
+
+  const pb = $("pointsOut");
+  clear(pb);
+  pb.appendChild(kvList([
+    ["Strijdsegment 1e / 2e / 3e", POINTS.segment.map(p => "+" + p).join(" / ")],
+    ["Hoogste VAM van de dag", "+" + POINTS.besteVam],
+    ["Minste stiltijd", "+" + POINTS.minsteStiltijd],
+    ["Elke keer gelost", String(POINTS.gelost)],
+    ["Langste enkele stop", String(POINTS.langsteStop)]
+  ]));
+  pb.appendChild(el("div", "est", "Aanpassen kan in de constante POINTS bovenaan het scriptblok."));
+}
+
+/* ------------------------- opslaan en laden ------------------------ */
+
+function download(naam, tekst, type) {
+  const blob = new Blob([tekst], { type: type || "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = naam;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+$("btnExport").addEventListener("click", () => {
+  const data = {
+    formaat: "grand-escape-tourtool",
+    versie: 1,
+    gemaakt: new Date().toISOString(),
+    punten: POINTS,
+    route: ROUTE_META,
+    dagen: state.days,
+    segmenten: state.segments,
+    uitslagen: state.scored
+  };
+  download("grand-escape-stand-" + new Date().toISOString().slice(0, 10) + ".json",
+    JSON.stringify(data, null, 1));
+  clear($("ioMsg"));
+  $("ioMsg").appendChild(note("ok", "Geëxporteerd. Bewaar dit bestand, morgen importeer je het weer."));
+});
+
+$("btnExportTxt").addEventListener("click", () => {
+  const L = [];
+  L.push("GRAND ESCAPE — stand na " + state.scored.length + " dag(en)");
+  L.push("");
+  for (const [i, r] of standings(state.scored).entries()) {
+    L.push((i + 1) + ". " + r.rider + "  " + (r.p > 0 ? "+" : "") + r.p);
+  }
+  for (const d of state.scored) {
+    L.push(""); L.push("— " + d.dayLabel + ", km " + fmt1(d.kmFrom) + " tot " + fmt1(d.kmTo));
+    for (const naam of d.riders) {
+      L.push("  " + naam + "  " + (d.pts[naam] > 0 ? "+" : "") + d.pts[naam]);
+      for (const w of d.why[naam]) L.push("      " + (w.p > 0 ? "+" : "") + w.p + "  " + w.reden);
+    }
+  }
+  download("grand-escape-stand.txt", L.join("\n"), "text/plain");
+});
+
+$("impIn").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  clear($("ioMsg"));
+  if (!f) return;
+  try {
+    const data = JSON.parse(await readFile(f));
+    if (data.formaat !== "grand-escape-tourtool") throw new Error("dit is geen export van deze tool");
+    if (Array.isArray(data.dagen) && data.dagen.length) state.days = data.dagen;
+    if (Array.isArray(data.segmenten) && data.segmenten.length) state.segments = data.segmenten;
+    state.scored = Array.isArray(data.uitslagen) ? data.uitslagen : [];
+    refreshDays();
+    renderStandings();
+    $("ioMsg").appendChild(note("ok", state.scored.length + " dag(en) ingeladen."));
+  } catch (err) {
+    $("ioMsg").appendChild(note("bad", "Importeren mislukt: " + err.message));
+  }
+  e.target.value = "";
+});
+
+$("btnWipe").addEventListener("click", () => {
+  if (!state.scored.length) return;
+  state.scored = [];
+  renderStandings();
+  clear($("ioMsg"));
+  $("ioMsg").appendChild(note("warn", "Klassement leeg. Als je niet had geëxporteerd, is het weg."));
+});
+
+/* ---------------------------- zelftest ----------------------------- */
+
+$("btnSelfTest").addEventListener("click", () => {
+  const out = $("testOut");
+  clear(out);
+  out.appendChild(el("p", "muted", "Bezig..."));
+  setTimeout(() => {
+    clear(out);
+    let res;
+    try { res = runSelfTest(); }
+    catch (err) { out.appendChild(note("bad", "De zelftest liep vast: " + err.message)); return; }
+    const fout = res.filter(r => !r.ok).length;
+    out.appendChild(note(fout ? "bad" : "ok",
+      res.length + " controles, " + (fout ? fout + " GEFAALD" : "alles geslaagd") + "."));
+    for (const r of res) {
+      const d = el("div", "test " + (r.ok ? "pass" : "fail"),
+        (r.ok ? "ok   " : "FOUT ") + r.naam + (r.detail ? "  —  " + r.detail : ""));
+      out.appendChild(d);
+    }
+  }, 30);
+});
+
+/* ------------------------------ start ------------------------------ */
+
+$("routeSub").textContent = ROUTE_META.totalKm + " km · +" + ROUTE_META.gainM + " hm · top " + ROUTE_META.maxEleM + " m";
+fillDaySelects();
+renderDayEditor();
+renderStandings();
+$("etaDate").value = new Date().toISOString().slice(0, 10);
+$("etaStart").value = "08:00";
+$("etaKm").value = fmt1(state.days[0].startKm);
+$("etaTarget").value = fmt1(state.days[0].endKm);
+state.etaKm = state.days[0].startKm;
+drawRest();
+drawMap();
+
+})();
 </script>
 </body>
 </html>
