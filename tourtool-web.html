@@ -177,9 +177,16 @@ ul.plain li:last-child{border-bottom:0}
     <div style="margin-top:.5rem"><button class="btn sec" id="btnGeo">Bepaal km via GPS</button></div>
     <div id="geoOut" class="est" style="margin-top:.35rem"></div>
     <div class="row" style="margin-top:.6rem">
-      <div><label for="etaElapsed">Onderweg (u:mm)</label><input type="text" id="etaElapsed" placeholder="3:20" inputmode="numeric"></div>
       <div><label for="etaTarget">Eindpunt km</label><input type="number" id="etaTarget" step="0.1" inputmode="decimal"></div>
     </div>
+    <!-- Twee losse velden, geen "3:20" in een tekstvak: het cijfer-
+         toetsenbord van iOS heeft geen dubbele punt, dus dat was niet
+         eens in te typen. -->
+    <div class="row" style="margin-top:.6rem">
+      <div><label for="etaUur">Onderweg — uren</label><input type="number" id="etaUur" min="0" max="23" step="1" placeholder="3" inputmode="numeric"></div>
+      <div><label for="etaMin">minuten</label><input type="number" id="etaMin" min="0" max="59" step="1" placeholder="20" inputmode="numeric"></div>
+    </div>
+    <div class="est" style="margin-top:.3rem">Hoe lang je vandaag al rijdt. Leeg laten mag als je hieronder een starttijd invult.</div>
     <div class="row" style="margin-top:.6rem">
       <div><label for="etaDate">Datum</label><input type="date" id="etaDate"></div>
       <div><label for="etaStart">Starttijd</label><input type="time" id="etaStart"></div>
@@ -2278,11 +2285,14 @@ $("btnGeo").addEventListener("click", () => {
   }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
 });
 
-function parseHM(s) {
-  if (!s) return null;
-  const m = String(s).trim().match(/^(\d+)[:.,h ]?(\d{1,2})?$/);
-  if (!m) return null;
-  return parseInt(m[1], 10) * 3600 + (m[2] ? parseInt(m[2], 10) : 0) * 60;
+// Verstreken tijd uit de twee velden. Beide leeg betekent: niet ingevuld,
+// dan mag de starttijd het overnemen.
+function elapsedUitVelden() {
+  const u = $("etaUur").value.trim(), m = $("etaMin").value.trim();
+  if (!u && !m) return null;
+  const uu = parseInt(u || "0", 10), mm = parseInt(m || "0", 10);
+  if (!isFinite(uu) || !isFinite(mm)) return null;
+  return uu * 3600 + mm * 60;
 }
 
 $("btnEta").addEventListener("click", () => {
@@ -2305,10 +2315,14 @@ $("btnEta").addEventListener("click", () => {
     const [Y, M, D] = dateStr.split("-").map(Number);
     startMs = new Date(Y, M - 1, D, h, mi).getTime();
   }
-  let elapsedS = parseHM($("etaElapsed").value);
-  if (elapsedS == null && startMs != null) elapsedS = (Date.now() - startMs) / 1000;
+  let elapsedS = elapsedUitVelden();
+  let uitStarttijd = false;
+  if (elapsedS == null && startMs != null) {
+    elapsedS = (Date.now() - startMs) / 1000;
+    uitStarttijd = true;
+  }
   if (elapsedS == null || elapsedS <= 0) {
-    box.appendChild(note("bad", "Vul in hoe lang je onderweg bent (bijvoorbeeld 3:20), of zet een starttijd."));
+    box.appendChild(note("bad", "Vul in hoe lang je onderweg bent, of zet hieronder een starttijd."));
     return;
   }
 
@@ -2355,6 +2369,7 @@ $("btnEta").addEventListener("click", () => {
   }
 
   const rows = [
+    ["Onderweg", fmtDur(elapsedS) + (uitStarttijd ? "  (uit je starttijd)" : "")],
     ["Nog te gaan", fmt1(eta.remainKm) + " km, +" + Math.round(eta.remainGainM) + " hm"],
     ["Rijtijd", fmtDur(eta.remainS)],
     ["Klimmend (>" + CFG.climbGrade + "%)", eta.vClimb ? fmt1(eta.vClimb) + " km/u" : "-"],

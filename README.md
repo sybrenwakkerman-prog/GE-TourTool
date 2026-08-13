@@ -120,7 +120,8 @@ km 113 (+199), km 250 (+163), km 265 (+303) en Predel (+249, km 456,8).
 ## De drie tabbladen
 
 **Vandaag** — vul je huidige km in (of laat de GPS hem bepalen) plus hoe
-lang je onderweg bent, en je krijgt drie aankomsttijden: zonder stops, met
+lang je vandaag al rijdt (twee velden: uren en minuten, of leeg laten als je
+een starttijd invult), en je krijgt drie aankomsttijden: zonder stops, met
 20 minuten koffie, met 45 minuten lunch. Rood als het na zonsondergang is.
 De zonsondergang wordt astronomisch berekend, zonder netwerk.
 
