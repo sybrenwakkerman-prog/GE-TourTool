@@ -24,6 +24,38 @@ Op de iPhone: in Safari op de link → Delen → *Bewaar in Bestanden*, daarna
 openen vanuit de app Bestanden. Eenmaal geopend werkt alles offline, ook in
 de vliegtuigmodus.
 
+## Op de iPhone: als web-app
+
+Safari kan geen `file://` openen, en de voorvertoning in Bestanden voert geen
+scripts uit — daar krijg je het rode vak van. De weg eromheen is de tool als
+web-app installeren. `docs/` staat daarvoor klaar (gemaakt door
+`build_web.py`): een manifest, iconen en een service worker die de hele app
+in de kast legt.
+
+Eenmalig instellen, op github.com:
+
+1. **Settings → General → Change visibility → Make public.** GitHub Pages
+   hostet geen privérepo's op een gratis account.
+2. **Settings → Pages → Source: Deploy from a branch.** Kies branch
+   `claude/slovenija-bike-tour-tool-fa6s4w` en map **`/docs`**. Opslaan.
+3. Na een minuut staat hij op
+   `https://sybrenwakkerman-prog.github.io/GE-TourTool/`
+
+Daarna op de telefoon, één keer met wifi:
+
+4. Open die link in **Safari** (niet in een andere browser — alleen Safari
+   mag op iOS iets op je beginscherm zetten).
+5. Deelknop → **Zet op beginscherm**.
+6. Open hem één keer vanaf je beginscherm terwijl je nog bereik hebt. De
+   service worker legt dan alles vast.
+
+Vanaf dat moment werkt hij zonder bereik, full-screen, met een eigen
+icoontje. Vliegtuigmodus maakt niet uit.
+
+Wijzigt de tool, draai dan `python3 build_web.py` en push. De service worker
+krijgt een nieuwe cachenaam uit de inhoud, dus de oude versie wordt
+weggegooid in plaats van blijven hangen.
+
 ## Delen met anderen
 
 Twee manieren, met een verschil dat ertoe doet:
@@ -33,9 +65,10 @@ De ontvanger moet het opslaan en daarna in Safari of Chrome openen, precies
 zoals hierboven. Dit is de enige manier die onderweg zonder bereik werkt, en
 dus de manier die telt zodra je in Slovenië zit.
 
-**Een link delen** — handig om het even te laten zien zonder gedoe met
-bestanden. `python3 build_web.py` maakt `tourtool-web.html`, de versie zonder
-eigen `<html>`-omhulsel die je kunt hosten. Twee dingen werken daar anders:
+**Een link delen** — stuur de Pages-link hierboven; die kunnen ze zelf ook
+op hun beginscherm zetten. Voor hosten elders maakt `build_web.py` daarnaast
+`tourtool-web.html`, zonder eigen `<html>`-omhulsel. Bij een ingesloten
+pagina werken twee dingen anders:
 
 - Opslaan gaat via de host, die eerst toestemming vraagt. De tool vangt dat
   af; weigert iemand, dan staat de tekst er alsnog om te kopieren.
