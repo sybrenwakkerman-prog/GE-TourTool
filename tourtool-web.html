@@ -780,7 +780,8 @@ const PHYS = {
 
 // Drempels van de analyse.
 const CFG = {
-  stopGapS: 30,         // gat tussen timestamps dat als stilstand telt
+  stopGapS: 30,         // gat tussen timestamps dat stilstand kan zijn
+  gapMovingKmh: 4,      // ging je daarin harder, dan was het signaalverlies
   standstillKmh: 1.5,   // ook stilstand: kruipsnelheid terwijl hij doorlogt
   standstillMinS: 30,
   stopCountMinS: 120,   // "stops > 2 min"
@@ -1071,8 +1072,21 @@ function resample1Hz(pts) {
     const dt = (b.t - a.t) / 1000;
     const ia = Math.round(a.t / 1000) - t0, ib = Math.round(b.t / 1000) - t0;
     if (dt > CFG.stopGapS) {
-      // stilstand: alleen de randen invullen, ertussen blijft het leeg
-      gapStops.push({ tStart: a.t, tEnd: b.t, durS: dt, lat: a.lat, lon: a.lon, bron: "gat in de opname" });
+      // Een gat in de opname is niet altijd stilstand. Rijd je een tunnel of
+      // een galerij in - en daar liggen er nogal wat op de Predel en de
+      // Vrsic - dan valt het signaal weg terwijl je gewoon doortrapt. Het
+      // verschil zit in de afstand: sta je stil, dan kom je er weer uit waar
+      // je erin ging.
+      const verplaatst = haversine(a.lat, a.lon, b.lat, b.lon);
+      const kmh = verplaatst / dt * 3.6;
+      if (kmh < CFG.gapMovingKmh) {
+        gapStops.push({
+          tStart: a.t, tEnd: b.t, durS: dt, lat: a.lat, lon: a.lon,
+          bron: "gat in de opname"
+        });
+      }
+      // Wel of geen stop: er wordt niet doorheen geinterpoleerd, want waar
+      // je in die minuut precies reed weten we niet.
       setAt(ia, a); setAt(ib, b);
       continue;
     }
@@ -2185,6 +2199,8 @@ function simulateRider(o) {
   let lastEmit = -1e9, lastEmitM = -1e9, nextGap = 1;
   const pts = [];
   const stops = (o.stops || []).map(s => Object.assign({ done: false }, s));
+  // Tunnels: geen punten, maar de rijder gaat gewoon door.
+  const tunnels = (o.tunnels || []).map(s => Object.assign({ done: false, tot: 0 }, s));
   let guard = 0;
 
   while (m < o.endM && guard++ < 400000) {
@@ -2199,7 +2215,11 @@ function simulateRider(o) {
     // Smart recording zet een punt neer op tijd, maar ook zodra de richting
     // verandert. Dat laatste benaderen we met een maximale puntafstand -
     // zonder dat legt de simulator de haarspelden van Vrsic recht.
-    if (tSec - lastEmit >= nextGap || m - lastEmitM >= 50) {
+    for (const tn of tunnels) {
+      if (!tn.done && m >= tn.atM) { tn.done = true; tn.tot = tSec + tn.durS; }
+    }
+    const inTunnel = tunnels.some(tn => tn.done && tSec < tn.tot);
+    if (!inTunnel && (tSec - lastEmit >= nextGap || m - lastEmitM >= 50)) {
       const p = routePosAt(m);
       const jitter = 4 / 111320;
       pts.push({
@@ -2475,6 +2495,31 @@ function runSelfTest() {
       near("stop van Rijder C: km-punt", big.km, C_STOP_AT / 1000, 0.4, " km");
     } else ok("stop van Rijder C gevonden", false, "geen enkele stop gedetecteerd");
     ok("Rijder A staat niet stil", riders[0].stopS < 30, fmtDur(riders[0].stopS) + " stilstand");
+
+    // Een tunnel is geen stop. Twee identieke gaten in de opname: bij de een
+    // staat de rijder stil, bij de ander rijdt hij met 40 km/u door een
+    // galerij. Alleen de eerste hoort stiltijd te zijn - anders verliest wie
+    // door de tunnels van de Predel rijdt tijd in het algemeen klassement.
+    {
+      const T = Date.UTC(2026, 7, 13, 6, 0, 0);
+      const stilstaan = simulateRider({
+        seed: 7, startM: 480000, endM: 492000, startMs: T, massKg: MASS,
+        powerW: 250, factor: () => 1, stops: [{ atM: 484000, durS: 90 }]
+      });
+      const tunnel = simulateRider({
+        seed: 7, startM: 480000, endM: 492000, startMs: T, massKg: MASS,
+        powerW: 250, factor: () => 1, tunnels: [{ atM: 484000, durS: 90 }]
+      });
+      const rStil = buildRider("Stilstand", MASS, parseGPX(toGPX("s", stilstaan.pts)), RIDER_COLORS[0]);
+      const rTun = buildRider("Tunnel", MASS, parseGPX(toGPX("t", tunnel.pts)), RIDER_COLORS[1]);
+      ok("stilstaan van 90 s telt als stop",
+        rStil.stopS >= 80 && rStil.stopS <= 100, fmtDur(rStil.stopS) + " stiltijd");
+      ok("even geen signaal terwijl je doorrijdt telt niet als stop",
+        rTun.stopS < 20, fmtDur(rTun.stopS) + " stiltijd bij een gat van 90 s in de opname");
+      ok("de tunnelrijder houdt zijn rijtijd",
+        Math.abs(rTun.movingS - rTun.elapsedS) < 20,
+        "rijtijd " + fmtDur(rTun.movingS) + " van " + fmtDur(rTun.elapsedS) + " totaal");
+    }
     near("bewegende tijd van C = totaal min stop", riders[2].movingS,
       riders[2].elapsedS - riders[2].stopS, 1, " s");
   }
