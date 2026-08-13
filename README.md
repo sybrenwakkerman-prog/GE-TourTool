@@ -142,6 +142,9 @@ over het gereden profiel verklaart, en dat wordt losgelaten op wat er nog
 komt. Zo weegt een klim vanzelf zwaarder dan een vlak stuk. Heb je het spoor
 van vandaag al ingeladen, dan worden beide snelheden gewoon gemeten.
 
+Bovenaan staat je **voortgang door de hele lus**: hoeveel procent van de 579 km
+je hebt gereden, met de hoogtemeters die je gehad hebt en die nog komen.
+
 Daaronder staat **wat komt eraan**: de eerstvolgende klim en sprint vanaf je
 huidige km, met afstand, categorie en wat het waard is, plus hoeveel punten er
 die dag nog liggen. Zonder dat werkt het klassement onderweg niet — dan rijd je
@@ -173,6 +176,11 @@ Sybren is. Je krijgt:
   een grijs getal.
 - **Stilstand**: elapsed tegen moving, met de langste stop. Telt nergens voor
   mee, staat er omdat het de rijtijd verklaart.
+- **De dag**: het profiel van de dag met de klimmen erop en waar je stilstond,
+  met de duur van elke stop. Daaronder de dag als tijdlijn — vertrek, stops,
+  de voet en de top van elke serieuze klim met hoogte en klimtijd, je hoogste
+  punt, je snelste moment, en hoe laat je binnen was. Niet wie won, maar hoe
+  de dag verliep. Kies bovenin wiens dag je bekijkt.
 - **Terugkijken**: een schuif over de kaart. Sleep naar 14:32 en je ziet waar
   alle drie stonden, met de gaten ertussen. Er zit een afspeelknop op die de
   dag in ongeveer een minuut doorloopt.
@@ -237,7 +245,7 @@ de volgende avond terug.** Er is ook een tekst-export voor in de groepsapp.
 De knop **Draai zelftest** bouwt drie synthetische rijders op de echte route
 met gaten op vooraf bepaalde kilometers, schrijft die weg als GPX en jaagt ze
 door precies dezelfde molen als een echt bestand. Vindt de detector die gaten
-niet terug, dan zie je het meteen. 57 controles.
+niet terug, dan zie je het meteen. 62 controles.
 
 Op geïmporteerde data draaien er sanity checks mee: afstand binnen 5% van het
 routesegment, geen snelheden boven 90 km/u, geen VAM boven 2.000, en een
@@ -279,7 +287,7 @@ node tests/run.js
 
 Trekt de scriptblokken uit `tourtool.html` en draait ze in Node met een
 kleine XML-lezer, zodat de analyse te controleren is zonder telefoon. Draait
-de 57 zelftest-controles plus de vier echte dagbestanden door de projectie en
+de 62 zelftest-controles plus de vier echte dagbestanden door de projectie en
 de afstandscontrole.
 
 ## Wat er bewust niet in zit
