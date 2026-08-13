@@ -142,6 +142,11 @@ over het gereden profiel verklaart, en dat wordt losgelaten op wat er nog
 komt. Zo weegt een klim vanzelf zwaarder dan een vlak stuk. Heb je het spoor
 van vandaag al ingeladen, dan worden beide snelheden gewoon gemeten.
 
+Daaronder staat **wat komt eraan**: de eerstvolgende klim en sprint vanaf je
+huidige km, met afstand, categorie en wat het waard is, plus hoeveel punten er
+die dag nog liggen. Zonder dat werkt het klassement onderweg niet — dan rijd je
+een cat 2 op zonder te weten dat je hem oprijdt.
+
 Kies bij **Ik ben** wie je bent; dat bepaalt alleen welk gewicht het
 vermogensmodel gebruikt. De dagindeling is aanpasbaar, want het echte schema
 mag afwijken van de GPX-splits.
@@ -168,6 +173,11 @@ Sybren is. Je krijgt:
   een grijs getal.
 - **Stilstand**: elapsed tegen moving, met de langste stop. Telt nergens voor
   mee, staat er omdat het de rijtijd verklaart.
+- **Terugkijken**: een schuif over de kaart. Sleep naar 14:32 en je ziet waar
+  alle drie stonden, met de gaten ertussen. Er zit een afspeelknop op die de
+  dag in ongeveer een minuut doorloopt.
+- **Dagverslag**: de dag in een alinea, om in de groepsapp te plakken. Droog
+  en feitelijk — dat leest harder dan grappig proberen te zijn.
 - **Overig**: maximumsnelheid met km-punt, temperatuur als de Garmin die
   meelevert, aankomstvolgorde, en de spreiding in snelheid als proxy voor
   wie zat te accelereren aan kop.
@@ -227,7 +237,7 @@ de volgende avond terug.** Er is ook een tekst-export voor in de groepsapp.
 De knop **Draai zelftest** bouwt drie synthetische rijders op de echte route
 met gaten op vooraf bepaalde kilometers, schrijft die weg als GPX en jaagt ze
 door precies dezelfde molen als een echt bestand. Vindt de detector die gaten
-niet terug, dan zie je het meteen. 52 controles.
+niet terug, dan zie je het meteen. 57 controles.
 
 Op geïmporteerde data draaien er sanity checks mee: afstand binnen 5% van het
 routesegment, geen snelheden boven 90 km/u, geen VAM boven 2.000, en een
@@ -269,7 +279,7 @@ node tests/run.js
 
 Trekt de scriptblokken uit `tourtool.html` en draait ze in Node met een
 kleine XML-lezer, zodat de analyse te controleren is zonder telefoon. Draait
-de 52 zelftest-controles plus de vier echte dagbestanden door de projectie en
+de 57 zelftest-controles plus de vier echte dagbestanden door de projectie en
 de afstandscontrole.
 
 ## Wat er bewust niet in zit
