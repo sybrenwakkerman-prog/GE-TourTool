@@ -86,11 +86,11 @@ geketend tot een gesloten lus:
 
 | Dag | van km | tot km | km | hm |
 |---|---|---|---|---|
-| 1 | 0,0 | 187,6 | 187,6 | +1.727 |
-| 2 | 187,6 | 386,6 | 199,0 | +2.113 |
-| 3 | 386,6 | 532,2 | 145,6 | +2.401 |
+| 1 | 0,0 | 187,6 | 187,6 | +1.716 |
+| 2 | 187,6 | 386,6 | 199,0 | +2.100 |
+| 3 | 386,6 | 532,2 | 145,6 | +2.395 |
 | 4 | 532,2 | 579,1 | 46,9 | +429 |
-| | | | **579,1** | **+6.690** |
+| | | | **579,1** | **+6.650** |
 
 Start en finish liggen op 46,3035 / 14,2863, even ten noorden van Kranj.
 Hoogste punt: Vršič, 1.608 m, op km 507.
@@ -107,6 +107,10 @@ wat te pakken valt dan drie beslissende bergen.
 
 De zwaarte komt uit een index (`hoogtewinst² / lengte`), zodat steil zwaarder
 weegt dan lang. Dat is wat een klim in de benen doet.
+
+Het steilste stuk van de hele route ligt vlak onder de top van Vršič, rond
+km 505: **13% over honderd meter, 12% over een halve kilometer**. De steilste
+afdaling is dezelfde berg aan de andere kant, rond km 507.
 
 | Cat | Aantal | Zwaarste voorbeeld |
 |---|---|---|

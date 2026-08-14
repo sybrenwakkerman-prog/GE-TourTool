@@ -129,28 +129,60 @@ def cumulative(pts):
 
 
 def smooth_ele(eles, dists, window_m=200.0):
-    """Voortschrijdend gemiddelde over een venster in meters, niet in punten.
+    """Voortschrijdend gemiddelde over een venster in meters.
 
     Komoot-hoogtes zitten vol trapjes; ongefilterd tellen die op tot honderden
     valse hoogtemeters.
+
+    Let op het woord gemiddelde: dat is een gemiddelde over de AFSTAND, niet
+    over de punten. Komoot zet punten neer waar de weg draait, dus in een
+    haarspeld liggen ze vijf meter uit elkaar en op een recht stuk tachtig.
+    Middel je dan gewoon de puntwaardes, dan trekt zo'n cluster het
+    gemiddelde naar zich toe en wordt de klim steiler dan hij is - op Vrsic
+    scheelde dat 22% waar 15% de werkelijkheid was.
+
+    We integreren daarom het lijnstuk-profiel over het venster en delen door
+    de lengte. Met een prefixsom van de trapezia kost dat O(1) per punt.
     """
     n = len(eles)
+    if n < 2:
+        return list(eles)
+
+    # opp[i] = oppervlak onder het profiel van dists[0] tot dists[i]
+    opp = [0.0] * n
+    for i in range(1, n):
+        opp[i] = opp[i - 1] + (dists[i] - dists[i - 1]) * (eles[i] + eles[i - 1]) / 2
+
+    def integraal(a, b):
+        """Oppervlak onder het profiel tussen meterstand a en b."""
+        return _opp_tot(dists, eles, opp, b) - _opp_tot(dists, eles, opp, a)
+
     out = [0.0] * n
-    lo = 0
-    hi = 0
-    acc = 0.0
     for i in range(n):
-        while lo < i and dists[i] - dists[lo] > window_m:
-            acc -= eles[lo]
-            lo += 1
-        if hi < lo:
-            hi = lo
-            acc = 0.0
-        while hi < n and dists[hi] - dists[i] <= window_m:
-            acc += eles[hi]
-            hi += 1
-        out[i] = acc / max(1, hi - lo)
+        a = max(dists[0], dists[i] - window_m)
+        b = min(dists[-1], dists[i] + window_m)
+        span = b - a
+        out[i] = eles[i] if span <= 0 else integraal(a, b) / span
     return out
+
+
+def _opp_tot(dists, eles, opp, m):
+    """Oppervlak onder het profiel van het begin tot meterstand m."""
+    if m <= dists[0]:
+        return 0.0
+    if m >= dists[-1]:
+        return opp[-1]
+    lo, hi = 0, len(dists) - 1
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if dists[mid] <= m:
+            lo = mid
+        else:
+            hi = mid
+    seg = dists[hi] - dists[lo]
+    f = 0.0 if seg <= 0 else (m - dists[lo]) / seg
+    e = eles[lo] + (eles[hi] - eles[lo]) * f
+    return opp[lo] + (m - dists[lo]) * (eles[lo] + e) / 2
 
 
 def total_gain(eles, threshold=2.0):
@@ -270,7 +302,7 @@ def downsample(res_pts, target, breaks=()):
 # ------------------------------------------------------------ klimdetectie
 
 
-def detect_climbs(dists, eles, min_gain=50.0, min_grade=2.0):
+def detect_climbs(dists, eles, min_gain=40.0, min_grade=2.0):
     """Vindt aaneengesloten klimmen in het gesmoothde profiel.
 
     Werkwijze: markeer stijgende stukken over een 400 m-venster, plak stukken
