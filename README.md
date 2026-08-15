@@ -86,14 +86,14 @@ geketend tot een gesloten lus:
 
 | Dag | van km | tot km | km | hm |
 |---|---|---|---|---|
-| 1 | 0,0 | 187,6 | 187,6 | +1.716 |
-| 2 | 187,6 | 386,6 | 199,0 | +2.100 |
-| 3 | 386,6 | 532,2 | 145,6 | +2.395 |
-| 4 | 532,2 | 579,1 | 46,9 | +429 |
-| | | | **579,1** | **+6.650** |
+| 1 | 0,0 | 167,1 | 167,1 | +1.564 |
+| 2 | 167,1 | 366,1 | 199,0 | +2.100 |
+| 3 | 366,1 | 511,7 | 145,6 | +2.395 |
+| 4 | 511,7 | 578,1 | 66,4 | +614 |
+| | | | **578,1** | **+6.673** |
 
-Start en finish liggen op 46,3035 / 14,2863, even ten noorden van Kranj.
-Hoogste punt: Vršič, 1.608 m, op km 507.
+Start en finish liggen op 46,1738 / 14,4157. Hoogste punt: Vršič, 1.609 m,
+op km 486,5.
 
 > De oude `gpx/final_route_oud.gpx` is de Cividale-lus uit de eerste
 > opzet. Die staat er alleen nog als naslag; de km-punten daaruit gelden
@@ -101,27 +101,27 @@ Hoogste punt: Vršič, 1.608 m, op km 507.
 
 ## De 26 klimmen
 
-Het bergklassement loopt over 26 klimmen, verdeeld 8 / 8 / 7 / 3 over de
-dagen. Van een bult van 50 hoogtemeters tot Vršič — liever veel plekken waar
+Het bergklassement loopt over 26 klimmen, verdeeld 8 / 9 / 6 / 3 over de
+dagen. Van een bult van 42 hoogtemeters tot Vršič — liever veel plekken waar
 wat te pakken valt dan drie beslissende bergen.
 
 De zwaarte komt uit een index (`hoogtewinst² / lengte`), zodat steil zwaarder
 weegt dan lang. Dat is wat een klim in de benen doet.
 
 Het steilste stuk van de hele route ligt vlak onder de top van Vršič, rond
-km 505: **13% over honderd meter, 12% over een halve kilometer**. De steilste
-afdaling is dezelfde berg aan de andere kant, rond km 507.
+km 485: **13% over honderd meter, 12% over een halve kilometer**. De steilste
+afdaling is dezelfde berg aan de andere kant.
 
 | Cat | Aantal | Zwaarste voorbeeld |
 |---|---|---|
-| HC | 1 | Vršič, km 492,5 — 14,8 km, +1.028 hm, 7,0% |
-| 1 | 2 | Rakitna, km 59,0 — 9,8 km, +531 hm, 5,4% |
-| 2 | 3 | Predel, km 456,8 — 4,8 km, +249 hm, 5,2% |
-| 3 | 2 | km 113 — 4,0 km, +199 hm, 5,0% |
-| 4 | 9 | Predel-aanloop, km 449 — 5,8 km, +151 hm |
-| 5 | 9 | km 205 — 4,0 km, +82 hm |
+| HC | 1 | Vršič, km 472,0 — 14,5 km, +1.028 hm, 7,1% |
+| 1 | 2 | Rakitna, km 38,5 — 9,8 km, +529 hm, 5,4% |
+| 2 | 3 | Predel, km 436,2 — 4,5 km, +245 hm, 5,4% |
+| 3 | 2 | km 92 — 3,8 km, +197 hm, 5,2% |
+| 4 | 6 | Predel-aanloop, km 428,8 — 5,2 km, +145 hm |
+| 5 | 12 | km 197 — 5,8 km, +115 hm |
 
-Wie alles zou winnen komt op 140 punten. Vršič is daar 10 van, dus 7% — de
+Wie alles zou winnen komt op 137 punten. Vršič is daar 10 van, dus 7% — de
 zwaarste klim is het meest waard maar beslist niets. Het kleinste klimmetje
 levert 4 punten tegen 10 voor Vršič: een factor 2,5, geen factor 10. Wie
 elke dag meedoet wint de bollen, niet wie één keer een col uitzit.

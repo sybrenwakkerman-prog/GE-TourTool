@@ -1,6 +1,6 @@
 // Gegenereerd door build_web.py - NIET met de hand aanpassen.
 // Legt de hele app in de kast zodat hij zonder bereik opent.
-const CACHE = "grand-escape-b3c558e95994";
+const CACHE = "grand-escape-2e8c5f75a416";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
