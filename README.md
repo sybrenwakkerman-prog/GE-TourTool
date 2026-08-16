@@ -185,6 +185,11 @@ een starttijd invult), en je krijgt drie aankomsttijden: zonder stops, met
 20 minuten koffie, met 45 minuten lunch. Rood als het na zonsondergang is.
 De zonsondergang wordt astronomisch berekend, zonder netwerk.
 
+Vul ook in **hoeveel van die tijd je stilstond**. Zonder dat denkt de
+rekensom dat je al die tijd hebt zitten trappen, en rolt er een vermogen uit
+dat veel te laag is — een uur terras drukt het zomaar van 145 naar 94 W. Het
+vermogen wordt op je rijtijd bepaald, de aankomsttijd op de klok.
+
 Uit alleen een km-stand en een verstreken tijd zijn een klimsnelheid en een
 vlakke snelheid niet allebei af te leiden — dat is één vergelijking met twee
 onbekenden. In plaats daarvan wordt gezocht naar het vermogen dat jouw tijd
@@ -258,16 +263,21 @@ de tijd dat jij van de drie het verst op de route was — wie voorop rijdt vangt
 de wind, en dat is uit drie GPS-sporen gewoon af te lezen. Een aanval is een
 gat van meer dan 100 m dat je zelf opende.
 
-De rijders staan bovenaan hetzelfde scriptblok. Het gewicht is rijder + fiets +
-bagage, en de virtuele watts hangen eraan:
+De rijders staan bovenaan hetzelfde scriptblok. Vul overal je **lichaams**gewicht
+in; de fiets met bagage wordt er automatisch bij opgeteld:
 
 ```js
+const FIETS_KG = 13;        // fiets, bidons en bagage
+
 const RIDERS = [
   { naam: "Sybren", gewicht: 80 },
   { naam: "Luuk", gewicht: 77 },
   { naam: "Thijmen", gewicht: 75 }
 ];
 ```
+
+Zo hoef je nergens hoofdrekenen te doen, en verandert de bepakking maar op
+één plek. W/kg blijft gedeeld door je lichaamsgewicht, zoals gebruikelijk.
 
 Punten in `POINTS`, daar vlak onder:
 
@@ -295,7 +305,7 @@ de volgende avond terug.** Er is ook een tekst-export voor in de groepsapp.
 De knop **Draai zelftest** bouwt drie synthetische rijders op de echte route
 met gaten op vooraf bepaalde kilometers, schrijft die weg als GPX en jaagt ze
 door precies dezelfde molen als een echt bestand. Vindt de detector die gaten
-niet terug, dan zie je het meteen. 62 controles.
+niet terug, dan zie je het meteen. 78 controles.
 
 Op geïmporteerde data draaien er sanity checks mee: afstand binnen 5% van het
 routesegment, geen snelheden boven 90 km/u, geen VAM boven 2.000, en een
@@ -337,7 +347,7 @@ node tests/run.js
 
 Trekt de scriptblokken uit `tourtool.html` en draait ze in Node met een
 kleine XML-lezer, zodat de analyse te controleren is zonder telefoon. Draait
-de 62 zelftest-controles plus de vier echte dagbestanden door de projectie en
+de 78 zelftest-controles plus de vier echte dagbestanden door de projectie en
 de afstandscontrole.
 
 ## Wat er bewust niet in zit

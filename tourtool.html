@@ -226,7 +226,7 @@ ul.plain li:last-child{border-bottom:0}
     </div>
     <div class="row" style="margin-top:.6rem">
       <div><label for="etaRider">Ik ben</label><select id="etaRider"></select></div>
-      <div><label for="etaMass">Gewicht kg</label><input type="number" id="etaMass" step="0.5" inputmode="decimal"></div>
+      <div><label for="etaMass">Jouw gewicht (kg)</label><input type="number" id="etaMass" step="0.5" inputmode="decimal"></div>
     </div>
     <div style="margin-top:.5rem"><button class="btn sec" id="btnGeo">Bepaal km via GPS</button></div>
     <div id="geoOut" class="est" style="margin-top:.35rem"></div>
@@ -240,7 +240,11 @@ ul.plain li:last-child{border-bottom:0}
       <div><label for="etaUur">Onderweg — uren</label><input type="number" id="etaUur" min="0" max="23" step="1" placeholder="3" inputmode="numeric"></div>
       <div><label for="etaMin">minuten</label><input type="number" id="etaMin" min="0" max="59" step="1" placeholder="20" inputmode="numeric"></div>
     </div>
-    <div class="est" style="margin-top:.3rem">Hoe lang je vandaag al rijdt. Leeg laten mag als je hieronder een starttijd invult.</div>
+    <div class="est" style="margin-top:.3rem">Totale tijd sinds je vertrok, koffie en lekke banden erbij. Leeg laten mag als je hieronder een starttijd invult.</div>
+    <div class="row" style="margin-top:.6rem">
+      <div><label for="etaStilMin">Waarvan stilgestaan (min)</label><input type="number" id="etaStilMin" min="0" max="600" step="5" placeholder="0" inputmode="numeric"></div>
+    </div>
+    <div class="est" style="margin-top:.3rem">Belangrijk: zonder dit denkt de rekensom dat je al die tijd hebt zitten trappen, en komt er een veel te laag vermogen uit.</div>
     <div class="row" style="margin-top:.6rem">
       <div><label for="etaDate">Datum</label><input type="date" id="etaDate"></div>
       <div><label for="etaStart">Starttijd</label><input type="time" id="etaStart"></div>
@@ -837,11 +841,19 @@ const CFG = {
 // GPX'en worden naam en gewicht hieruit voorgevuld - scheelt elke avond
 // hetzelfde intikken. Gewicht is rijder + fiets + bagage; pas het aan
 // zodra je het echt gewogen hebt, want de virtuele watts hangen eraan.
+// Overal wordt je LICHAAMSgewicht gevraagd. Hier staat wat er standaard bij
+// opgeteld wordt voor fiets, bidons en bagage. Zo hoef je nergens hoofdrekenen
+// te doen en staat het maar op een plek als de bepakking verandert.
+const FIETS_KG = 13;
+
 const RIDERS = [
   { naam: "Sybren", gewicht: 80 },
   { naam: "Luuk", gewicht: 77 },
   { naam: "Thijmen", gewicht: 75 }
 ];
+
+// Rijder plus fiets plus bagage: het gewicht waar de natuurkunde mee rekent.
+const totaalKg = rijderKg => (rijderKg > 0 ? rijderKg : 80) + FIETS_KG;
 
 const RIDER_COLORS = ["#38bdf8", "#fb923c", "#a3e635"];
 
@@ -1514,8 +1526,8 @@ function climbResults(riders, climbs) {
         watts: null
       };
       if (grade >= PHYS.minGrade && r.weightKg > 0) {
-        row.watts = virtualWatts(r.weightKg, lengthM, gainM, durS, meanEle);
-        row.wkg = row.watts / r.weightKg;
+        row.watts = virtualWatts(totaalKg(r.weightKg), lengthM, gainM, durS, meanEle);
+        row.wkg = row.watts / r.weightKg;   // per kilo lichaamsgewicht
       }
       rows.push(row);
     }
@@ -2848,6 +2860,31 @@ function runSelfTest() {
       st.algemeen[0].tijdS === an.gc[0].tijdS * 2 &&
       st.berg[0].p === Math.max(...Object.values(sc2.berg)) * 2,
       "algemeen " + fmtDur(st.algemeen[0].tijdS) + ", berg " + st.berg[0].p + " punten");
+    // --- gewicht en rijtijd ---
+    {
+      ok("fiets en bagage worden bij je lichaamsgewicht opgeteld",
+        totaalKg(80) === 80 + FIETS_KG && totaalKg(0) === 80 + FIETS_KG,
+        "80 kg rijder wordt " + totaalKg(80) + " kg totaal (" + FIETS_KG + " kg fiets)");
+
+      // Een zwaarder systeem moet bij hetzelfde vermogen langzamer klimmen.
+      const licht = speedForPower(200, 0.06, 80, 800);
+      const zwaar = speedForPower(200, 0.06, totaalKg(80), 800);
+      ok("met bagage klim je langzamer bij hetzelfde vermogen", zwaar < licht,
+        fmt1(licht * 3.6) + " km/u zonder tegen " + fmt1(zwaar * 3.6) + " km/u met");
+
+      // Stoptijd meerekenen als rijtijd drukt het vermogen omlaag; dat is
+      // precies waar een geschat vermogen van 76 W vandaan kwam.
+      const m0 = START_M, m1 = START_M + 25000;
+      const echt = etaCalc({ fromKm: m1 / 1000, toKm: (m1 + 20000) / 1000,
+        elapsedS: 3600, massKg: totaalKg(80), dayStartKm: m0 / 1000 });
+      const metStops = etaCalc({ fromKm: m1 / 1000, toKm: (m1 + 20000) / 1000,
+        elapsedS: 5400, massKg: totaalKg(80), dayStartKm: m0 / 1000 });
+      ok("stoptijd meerekenen als rijtijd verlaagt het geschatte vermogen fors",
+        metStops.powerW < echt.powerW * 0.7,
+        Math.round(echt.powerW) + " W op rijtijd tegen " + Math.round(metStops.powerW) +
+        " W als je een half uur stilstand meerekent");
+    }
+
     // --- water ---
     {
       // Vijf punten: vier vlak na elkaar, dan een gat van 30 km.
@@ -3530,10 +3567,20 @@ $("btnEta").addEventListener("click", () => {
     return;
   }
 
-  const massKg = parseFloat($("etaMass").value) || 85;
+  // Stoptijd eraf: het vermogen moet uit je RIJtijd komen. Reken je een uur
+  // terras mee als trapwerk, dan rolt er een vermogen uit dat nergens op
+  // slaat, en klopt de voorspelling voor de rest van de dag ook niet.
+  const stilS = Math.max(0, (parseFloat($("etaStilMin").value) || 0) * 60);
+  const rijdS = Math.max(60, elapsedS - stilS);
+  if (stilS >= elapsedS) {
+    box.appendChild(note("bad", "Je stilstand is langer dan je hele rit. Kijk die getallen even na."));
+    return;
+  }
+
+  const massKg = totaalKg(parseFloat($("etaMass").value));
   const measured = state.analysis && state.analysis.measured ? state.analysis.measured : null;
   const eta = etaCalc({
-    fromKm: from, toKm: to, elapsedS, massKg,
+    fromKm: from, toKm: to, elapsedS: rijdS, massKg,
     dayStartKm: d.startKm, measured
   });
   if (eta.error) { box.appendChild(note("bad", eta.error)); return; }
@@ -3573,7 +3620,9 @@ $("btnEta").addEventListener("click", () => {
   }
 
   const rows = [
-    ["Onderweg", fmtDur(elapsedS) + (uitStarttijd ? "  (uit je starttijd)" : "")],
+    ["Onderweg", fmtDur(elapsedS) + (uitStarttijd ? "  (uit je starttijd)" : "") +
+      (stilS > 0 ? ", waarvan " + fmtDur(stilS) + " stil" : "")],
+    ["Rijtijd tot nu", fmtDur(rijdS)],
     ["Nog te gaan", fmt1(eta.remainKm) + " km, +" + Math.round(eta.remainGainM) + " hm"],
     ["Rijtijd", fmtDur(eta.remainS)],
     ["Klimmend (>" + CFG.climbGrade + "%)", eta.vClimb ? fmt1(eta.vClimb) + " km/u" : "-"],
@@ -3581,9 +3630,19 @@ $("btnEta").addEventListener("click", () => {
   ];
   if (eta.mode === "geschat") {
     rows.push(["Afgelegd", fmt1(eta.doneKm) + " km, +" + Math.round(eta.doneGainM) + " hm in " + fmtDur(elapsedS)]);
-    rows.push(["Model", Math.round(eta.powerW) + " W geschat"]);
+    rows.push(["Model", Math.round(eta.powerW) + " W bij " + Math.round(massKg) +
+      " kg totaal (jij + " + FIETS_KG + " kg fiets)"]);
   }
   det.appendChild(kvList(rows));
+  if (eta.mode === "geschat" && eta.powerW < 90) {
+    det.appendChild(note("warn", "Dat vermogen is laag voor een fietser die doortrapt. " +
+      (stilS > 0
+        ? "Klopt de stilstand die je invulde? Stond je langer stil, vul dat dan bij."
+        : "Heb je onderweg stilgestaan? Vul dat hierboven in — anders rekent hij je koffie mee als rijtijd.")));
+  } else if (eta.mode === "geschat" && eta.powerW > 350) {
+    det.appendChild(note("warn", "Dat vermogen is hoog. Klopt je km-stand, en heb je niet " +
+      "per ongeluk te veel stilstand ingevuld?"));
+  }
   det.appendChild(note("", eta.mode === "gemeten"
     ? "Klim- en vlakke snelheid zijn gemeten uit het spoor dat je hebt ingeladen."
     : "Uit km-stand en verstreken tijd alleen zijn twee snelheden niet af te leiden. "
@@ -3647,7 +3706,7 @@ function renderFileList() {
     ni.addEventListener("input", () => f.naam = ni.value);
     a.appendChild(ni);
     const b = el("div");
-    b.appendChild(el("label", null, "Gewicht kg (rijder + fiets + bagage)"));
+    b.appendChild(el("label", null, "Gewicht rijder (kg)"));
     const wi = el("input"); wi.type = "number"; wi.step = "0.5"; wi.value = f.gewicht; wi.inputMode = "decimal";
     wi.addEventListener("input", () => f.gewicht = parseFloat(wi.value) || 0);
     b.appendChild(wi);
@@ -3791,8 +3850,9 @@ function renderAnalysis(an) {
   if (an.segs.some(x => x.showWatts)) {
     gb.appendChild(el("div", "est",
       "Watt is een schatting uit zwaartekracht, rolweerstand en lucht (Crr " + PHYS.crr +
-      ", CdA " + PHYS.cda + ", rendement " + PHYS.rendement + "). Geen meting. W/kg is gedeeld "
-      + "door het totaalgewicht dat je hebt ingevuld, niet door lichaamsgewicht."));
+      ", CdA " + PHYS.cda + ", rendement " + PHYS.rendement + "). Geen meting. Gerekend met "
+      + "jouw gewicht plus " + FIETS_KG + " kg fiets en bagage; W/kg is gedeeld door je "
+      + "lichaamsgewicht."));
   }
 
   // sprints
@@ -3991,7 +4051,7 @@ function renderWater() {
   const voorraadMl = (parseFloat($("waterVoorraad").value) || 0) * 1000;
   const plan = bidonPlan(state.water, nu, d.endKm, {
     tempC: isFinite(tempC) ? tempC : 25,
-    massKg: parseFloat($("etaMass").value) || 85,
+    massKg: totaalKg(parseFloat($("etaMass").value)),
     powerW: state.laatsteWatt || WATER.aannameWatt,
     voorraadMl
   });
