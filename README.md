@@ -267,17 +267,21 @@ De rijders staan bovenaan hetzelfde scriptblok. Vul overal je **lichaams**gewich
 in; de fiets met bagage wordt er automatisch bij opgeteld:
 
 ```js
-const FIETS_KG = 13;        // fiets, bidons en bagage
+const FIETS_KG = 13;        // standaard voor fiets, bidons en bagage
 
 const RIDERS = [
-  { naam: "Sybren", gewicht: 80 },
-  { naam: "Luuk", gewicht: 77 },
-  { naam: "Thijmen", gewicht: 75 }
+  { naam: "Sybren", gewicht: 80, fiets: FIETS_KG },
+  { naam: "Luuk", gewicht: 77, fiets: FIETS_KG },
+  { naam: "Thijmen", gewicht: 75, fiets: FIETS_KG }
 ];
 ```
 
-Zo hoef je nergens hoofdrekenen te doen, en verandert de bepakking maar op
-één plek. W/kg blijft gedeeld door je lichaamsgewicht, zoals gebruikelijk.
+Beide getallen zijn ook in de app zelf aan te passen — op het Vandaag-tabblad
+staan *Jouw gewicht* en *Fiets + bagage* naast elkaar, met het totaal ernaast.
+Wat je daar intikt blijft aan die rijder hangen. Bij het inladen van GPX'en
+staat het per bestand, zodat de wattvergelijking klopt als de een op een
+stalen fiets met tassen zit en de ander op een kale racefiets. W/kg blijft
+gedeeld door je lichaamsgewicht, zoals gebruikelijk.
 
 Punten in `POINTS`, daar vlak onder:
 

@@ -234,6 +234,10 @@ ul.plain li:last-child{border-bottom:0}
       <div><label for="etaRider">Ik ben</label><select id="etaRider"></select></div>
       <div><label for="etaMass">Jouw gewicht (kg)</label><input type="number" id="etaMass" step="0.5" inputmode="decimal"></div>
     </div>
+    <div class="row" style="margin-top:.6rem">
+      <div><label for="etaFiets">Fiets + bagage (kg)</label><input type="number" id="etaFiets" step="0.5" min="0" max="60" inputmode="decimal"></div>
+      <div><label>Samen</label><div class="num" id="etaSamen" style="padding-top:.75rem;font-weight:700"></div></div>
+    </div>
     <div style="margin-top:.5rem"><button class="btn sec" id="btnGeo">Bepaal km via GPS</button></div>
     <div id="geoOut" class="est" style="margin-top:.35rem"></div>
     <div class="row" style="margin-top:.6rem">
@@ -847,19 +851,24 @@ const CFG = {
 // GPX'en worden naam en gewicht hieruit voorgevuld - scheelt elke avond
 // hetzelfde intikken. Gewicht is rijder + fiets + bagage; pas het aan
 // zodra je het echt gewogen hebt, want de virtuele watts hangen eraan.
-// Overal wordt je LICHAAMSgewicht gevraagd. Hier staat wat er standaard bij
-// opgeteld wordt voor fiets, bidons en bagage. Zo hoef je nergens hoofdrekenen
-// te doen en staat het maar op een plek als de bepakking verandert.
+// Overal wordt je LICHAAMSgewicht gevraagd; fiets en bagage komen er apart
+// bij. Dat scheelt hoofdrekenen, en je kunt het per rijder zetten - een
+// stalen fiets met volle tassen weegt nu eenmaal niet hetzelfde als een
+// kale racefiets. In de app zelf zijn beide getallen aan te passen.
 const FIETS_KG = 13;
 
 const RIDERS = [
-  { naam: "Sybren", gewicht: 80 },
-  { naam: "Luuk", gewicht: 77 },
-  { naam: "Thijmen", gewicht: 75 }
+  { naam: "Sybren", gewicht: 80, fiets: FIETS_KG },
+  { naam: "Luuk", gewicht: 77, fiets: FIETS_KG },
+  { naam: "Thijmen", gewicht: 75, fiets: FIETS_KG }
 ];
 
 // Rijder plus fiets plus bagage: het gewicht waar de natuurkunde mee rekent.
-const totaalKg = rijderKg => (rijderKg > 0 ? rijderKg : 80) + FIETS_KG;
+function totaalKg(rijderKg, fietsKg) {
+  const r = rijderKg > 0 ? rijderKg : 80;
+  const f = fietsKg != null && fietsKg >= 0 ? fietsKg : FIETS_KG;
+  return r + f;
+}
 
 const RIDER_COLORS = ["#38bdf8", "#fb923c", "#a3e635"];
 
@@ -1184,7 +1193,7 @@ function resample1Hz(pts) {
  * nodig hebben: positie per seconde, meterstand langs de route, stops,
  * en de tijd-per-kilometer-curve.
  */
-function buildRider(name, weightKg, raw, color) {
+function buildRider(name, weightKg, raw, color, fietsKg) {
   const rs = resample1Hz(raw.pts);
   const { n, t0 } = rs;
 
@@ -1294,6 +1303,7 @@ function buildRider(name, weightKg, raw, color) {
 
   const r = {
     name, weightKg, color,
+    fietsKg: fietsKg != null ? fietsKg : FIETS_KG,
     t0, n, rs, km, off, spd,
     stops: merged,
     tStartMs: raw.pts[0].t,
@@ -1532,7 +1542,7 @@ function climbResults(riders, climbs) {
         watts: null
       };
       if (grade >= PHYS.minGrade && r.weightKg > 0) {
-        row.watts = virtualWatts(totaalKg(r.weightKg), lengthM, gainM, durS, meanEle);
+        row.watts = virtualWatts(totaalKg(r.weightKg, r.fietsKg), lengthM, gainM, durS, meanEle);
         row.wkg = row.watts / r.weightKg;   // per kilo lichaamsgewicht
       }
       rows.push(row);
@@ -1818,7 +1828,7 @@ function analyseDay(riders, day, climbs, sprints) {
   return {
     dayLabel: day.label, kmFrom: day.startKm, kmTo: day.endKm,
     date: new Date(riders[0].tStartMs).toISOString().slice(0, 10),
-    riders: riders.map(r => ({ name: r.name, weightKg: r.weightKg, color: r.color })),
+    riders: riders.map(r => ({ name: r.name, weightKg: r.weightKg, fietsKg: r.fietsKg, color: r.color })),
     segs, sprints: sprintsUit, gc, race, splits, series, stops, misc, checks,
     arrivals: gc.map(g => ({ rider: g.rider, color: g.color, pos: g.pos }))
   };
@@ -2869,8 +2879,19 @@ function runSelfTest() {
     // --- gewicht en rijtijd ---
     {
       ok("fiets en bagage worden bij je lichaamsgewicht opgeteld",
-        totaalKg(80) === 80 + FIETS_KG && totaalKg(0) === 80 + FIETS_KG,
-        "80 kg rijder wordt " + totaalKg(80) + " kg totaal (" + FIETS_KG + " kg fiets)");
+        totaalKg(80) === 80 + FIETS_KG && totaalKg(80, 9) === 89 && totaalKg(0) === 80 + FIETS_KG,
+        "80 kg rijder wordt " + totaalKg(80) + " kg standaard, en " + totaalKg(80, 9) +
+        " kg met een fiets van 9 kg");
+
+      // Een rijder houdt zijn eigen fietsgewicht vast tot in de wattberekening.
+      {
+        const licht = { name: "L", weightKg: 80, fietsKg: 8, color: "#fff" };
+        const zwaar = { name: "Z", weightKg: 80, fietsKg: 20, color: "#fff" };
+        const wL = virtualWatts(totaalKg(licht.weightKg, licht.fietsKg), 8000, 500, 2400, 900);
+        const wZ = virtualWatts(totaalKg(zwaar.weightKg, zwaar.fietsKg), 8000, 500, 2400, 900);
+        ok("zwaarder beladen kost meer watt voor dezelfde klimtijd", wZ > wL + 25,
+          Math.round(wL) + " W met 8 kg fiets tegen " + Math.round(wZ) + " W met 20 kg");
+      }
 
       // Een zwaarder systeem moet bij hetzelfde vermogen langzamer klimmen.
       const licht = speedForPower(200, 0.06, 80, 800);
@@ -3583,7 +3604,7 @@ $("btnEta").addEventListener("click", () => {
     return;
   }
 
-  const massKg = totaalKg(parseFloat($("etaMass").value));
+  const massKg = totaalKg(parseFloat($("etaMass").value), parseFloat($("etaFiets").value));
   const measured = state.analysis && state.analysis.measured ? state.analysis.measured : null;
   const eta = etaCalc({
     fromKm: from, toKm: to, elapsedS: rijdS, massKg,
@@ -3635,9 +3656,11 @@ $("btnEta").addEventListener("click", () => {
     ["Overig", eta.vFlat ? fmt1(eta.vFlat) + " km/u" : "-"]
   ];
   if (eta.mode === "geschat") {
-    rows.push(["Afgelegd", fmt1(eta.doneKm) + " km, +" + Math.round(eta.doneGainM) + " hm in " + fmtDur(elapsedS)]);
+    // rijtijd, niet de klok: het vermogen hieronder komt daar ook uit
+    rows.push(["Afgelegd", fmt1(eta.doneKm) + " km, +" + Math.round(eta.doneGainM) +
+      " hm in " + fmtDur(rijdS) + " rijden"]);
     rows.push(["Model", Math.round(eta.powerW) + " W bij " + Math.round(massKg) +
-      " kg totaal (jij + " + FIETS_KG + " kg fiets)"]);
+      " kg totaal"]);
   }
   det.appendChild(kvList(rows));
   if (eta.mode === "geschat" && eta.powerW < 90) {
@@ -3686,7 +3709,8 @@ $("gpxIn").addEventListener("change", e => {
     // Voorvullen uit RIDERS; de volgorde waarin je de bestanden kiest
     // bepaalt wie wie is, dus controleer het even.
     naam: RIDERS[i] ? RIDERS[i].naam : f.name.replace(/\.gpx$/i, "").replace(/[_-]/g, " ").slice(0, 24),
-    gewicht: RIDERS[i] ? RIDERS[i].gewicht : 85
+    gewicht: RIDERS[i] ? RIDERS[i].gewicht : 80,
+    fiets: RIDERS[i] && RIDERS[i].fiets != null ? RIDERS[i].fiets : FIETS_KG
   }));
   renderFileList();
   $("btnAnalyse").disabled = state.files.length === 0;
@@ -3712,11 +3736,16 @@ function renderFileList() {
     ni.addEventListener("input", () => f.naam = ni.value);
     a.appendChild(ni);
     const b = el("div");
-    b.appendChild(el("label", null, "Gewicht rijder (kg)"));
+    b.appendChild(el("label", null, "Rijder (kg)"));
     const wi = el("input"); wi.type = "number"; wi.step = "0.5"; wi.value = f.gewicht; wi.inputMode = "decimal";
     wi.addEventListener("input", () => f.gewicht = parseFloat(wi.value) || 0);
     b.appendChild(wi);
-    row.appendChild(a); row.appendChild(b);
+    const c = el("div");
+    c.appendChild(el("label", null, "Fiets + bagage (kg)"));
+    const fi = el("input"); fi.type = "number"; fi.step = "0.5"; fi.min = "0"; fi.value = f.fiets; fi.inputMode = "decimal";
+    fi.addEventListener("input", () => f.fiets = parseFloat(fi.value) || 0);
+    c.appendChild(fi);
+    row.appendChild(a); row.appendChild(b); row.appendChild(c);
     card.appendChild(row);
     box.appendChild(card);
   });
@@ -3744,7 +3773,7 @@ $("btnAnalyse").addEventListener("click", async () => {
       let raw;
       try { raw = parseGPX(txt); }
       catch (err) { throw new Error(f.file.name + ": " + err.message); }
-      riders.push(buildRider(f.naam || ("Rijder " + (i + 1)), f.gewicht, raw, RIDER_COLORS[i]));
+      riders.push(buildRider(f.naam || ("Rijder " + (i + 1)), f.gewicht, raw, RIDER_COLORS[i], f.fiets));
     }
     const day = state.days[parseInt($("anDay").value, 10) || 0];
     const an = analyseDay(riders, day, state.climbs, state.sprints);
@@ -4057,7 +4086,7 @@ function renderWater() {
   const voorraadMl = (parseFloat($("waterVoorraad").value) || 0) * 1000;
   const plan = bidonPlan(state.water, nu, d.endKm, {
     tempC: isFinite(tempC) ? tempC : 25,
-    massKg: totaalKg(parseFloat($("etaMass").value)),
+    massKg: totaalKg(parseFloat($("etaMass").value), parseFloat($("etaFiets").value)),
     powerW: state.laatsteWatt || WATER.aannameWatt,
     voorraadMl
   });
@@ -4777,12 +4806,34 @@ RIDERS.forEach((r, i) => {
   o.value = String(i);
   $("etaRider").appendChild(o);
 });
+function toonSamen() {
+  $("etaSamen").textContent = Math.round(
+    totaalKg(parseFloat($("etaMass").value), parseFloat($("etaFiets").value))) + " kg";
+}
 $("etaRider").addEventListener("change", () => {
   const r = RIDERS[parseInt($("etaRider").value, 10)];
-  if (r) $("etaMass").value = r.gewicht;
+  if (r) {
+    $("etaMass").value = r.gewicht;
+    $("etaFiets").value = r.fiets != null ? r.fiets : FIETS_KG;
+  }
+  toonSamen(); renderWater();
 });
+for (const id of ["etaMass", "etaFiets"]) {
+  $(id).addEventListener("input", () => {
+    // meteen onthouden bij de gekozen rijder, zodat je het maar een keer typt
+    const r = RIDERS[parseInt($("etaRider").value, 10)];
+    if (r) {
+      const g = parseFloat($("etaMass").value), f = parseFloat($("etaFiets").value);
+      if (isFinite(g) && g > 0) r.gewicht = g;
+      if (isFinite(f) && f >= 0) r.fiets = f;
+    }
+    toonSamen(); renderWater();
+  });
+}
 $("etaRider").value = "0";
 $("etaMass").value = RIDERS[0].gewicht;
+$("etaFiets").value = RIDERS[0].fiets != null ? RIDERS[0].fiets : FIETS_KG;
+toonSamen();
 $("waterTemp").value = 28;
 $("waterVoorraad").value = (WATER.bidons * WATER.bidonMl / 1000).toFixed(2).replace(/0$/, "");
 for (const id of ["waterTemp", "waterVoorraad"]) $(id).addEventListener("input", renderWater);
