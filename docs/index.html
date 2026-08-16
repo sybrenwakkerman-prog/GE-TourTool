@@ -266,6 +266,26 @@ ul.plain li:last-child{border-bottom:0}
   </div>
 
   <div class="card">
+    <h2>Water</h2>
+    <div class="row">
+      <div><label for="waterTemp">Hoe warm is het (°C)</label><input type="number" id="waterTemp" step="1" min="-5" max="45" inputmode="numeric"></div>
+      <div><label for="waterVoorraad">Bidons mee (liter)</label><input type="number" id="waterVoorraad" step="0.25" min="0" max="6" inputmode="decimal"></div>
+    </div>
+    <div id="waterOut" style="margin-top:.7rem"></div>
+    <details style="margin-top:.6rem">
+      <summary>Waterpunten laden of vervangen</summary>
+      <p class="est">Uit OpenStreetMap, dezelfde bron als waterapps gebruiken.
+        Draai de query uit <code>build_water.py --query</code> op overpass-turbo.eu,
+        exporteer als GeoJSON en laad hem hier. Werkt ook met een GPX vol waypoints.
+        Wat je laadt gaat mee in de JSON-export, dus je hoeft het maar één keer te doen.</p>
+      <label class="filebtn btn sec" for="waterIn" style="margin-top:.4rem">Kies GeoJSON of GPX
+        <input type="file" id="waterIn" accept=".geojson,.json,.gpx">
+      </label>
+      <div id="waterImportMsg" style="margin-top:.5rem"></div>
+    </details>
+  </div>
+
+  <div class="card">
     <h2>Restprofiel</h2>
     <div class="chartwrap"><svg id="svgRest" viewBox="0 0 1000 430" aria-label="Hoogteprofiel resterend"></svg></div>
     <div id="restInfo" class="est" style="margin-top:.4rem"></div>
@@ -742,6 +762,12 @@ const DEFAULT_SPRINTS = [
   {name:"Sprint km 555", day:"Dag 4", km:554.9},
 ];
 /* === ROUTE DATA END === */
+
+/* === WATER DATA START === */
+// Nog geen waterpunten ingebakken. Draai build_water.py met een export uit
+// OpenStreetMap, of importeer een bestand op het Vandaag-tabblad.
+const DEFAULT_WATER = [];
+/* === WATER DATA END === */
 /* ==================================================================
    Grand Escape Tourtool - analyse-engine
    Alles draait lokaal. Geen netwerk, geen opslag, geen dependencies.
@@ -822,6 +848,22 @@ const RIDERS = [
 ];
 
 const RIDER_COLORS = ["#38bdf8", "#fb923c", "#a3e635"];
+
+// Water. De verbruikscijfers zijn vuistregels, geen wetenschap: rond de
+// 400 ml per uur bij twintig graden, en er per graad daarboven 40 ml bij.
+// Klimmen kost meer omdat je harder werkt en langzamer rijdt, dus minder
+// rijwind. Stel ze gerust bij als je merkt dat je meer of minder drinkt.
+const WATER = {
+  maxOffsetM: 350,      // verder dan dit van de route telt niet mee
+  langsKm: 15,          // hierboven heet het een droog stuk
+  bidons: 2,
+  bidonMl: 750,
+  mlPerUur: 400,        // bij refTemp graden
+  mlPerGraad: 40,       // erbij per graad daarboven
+  klimFactor: 1.5,      // maal zoveel op stukken boven 3%
+  refTemp: 20,
+  aannameWatt: 170      // als er nog geen ETA is uitgerekend
+};
 
 /* --------------------------- kleine helpers ----------------------- */
 
@@ -2067,6 +2109,117 @@ function measuredSpeeds(r) {
   };
 }
 
+/* -------------------------------- water ---------------------------- */
+
+/**
+ * Waterpunten zijn opgeslagen als [meters, lat, lon, offset, soort, naam].
+ * Een plat array scheelt de helft aan bestandsgrootte tegenover objecten,
+ * en er kunnen er honderden zijn.
+ */
+function waterPunt(w) {
+  return { m: w[0], km: w[0] / 1000, lat: w[1], lon: w[2], offsetM: w[3],
+           soort: w[4] || "water", naam: w[5] || "" };
+}
+
+// Alle punten tussen twee kilometerstanden, op volgorde.
+function waterTussen(lijst, vanKm, totKm) {
+  return lijst.map(waterPunt)
+    .filter(w => w.km >= vanKm - 0.05 && w.km <= totKm + 0.05)
+    .sort((a, b) => a.km - b.km);
+}
+
+/**
+ * Stukken zonder water. Het begin- en eindpunt tellen mee als grens, want
+ * of er bij de start of het hotel een kraan is weet deze lijst niet.
+ */
+function drogeStukken(lijst, vanKm, totKm, drempelKm) {
+  const w = waterTussen(lijst, vanKm, totKm);
+  const grenzen = [vanKm].concat(w.map(x => x.km)).concat([totKm]);
+  const uit = [];
+  for (let i = 0; i < grenzen.length - 1; i++) {
+    const lengte = grenzen[i + 1] - grenzen[i];
+    if (lengte >= (drempelKm || WATER.langsKm)) {
+      uit.push({ vanKm: grenzen[i], totKm: grenzen[i + 1], lengteKm: lengte });
+    }
+  }
+  return uit.sort((a, b) => b.lengteKm - a.lengteKm);
+}
+
+/**
+ * Hoeveel drink je tussen twee punten op de route.
+ *
+ * Tijd komt uit hetzelfde vermogensmodel als de ETA, zodat een klim zwaarder
+ * telt dan een vlak stuk - en dat is precies waar het bij water om draait:
+ * de tien kilometer naar de top van Vrsic kosten je meer dan dertig
+ * kilometer door het dal.
+ */
+function drinkTussen(m0, m1, tempC, powerW, massKg) {
+  const basis = WATER.mlPerUur + Math.max(0, tempC - WATER.refTemp) * WATER.mlPerGraad;
+  let ml = 0, tijdS = 0;
+  const i0 = routeIndexAt(m0), i1 = routeIndexAt(m1);
+  let prevM = m0, prevE = routeEleAt(m0);
+  for (let i = i0 + 1; i <= i1 + 1 && i < RT.n; i++) {
+    const m = Math.min(RT.m[i], m1), e = m >= m1 ? routeEleAt(m1) : RT.ele[i];
+    const d = m - prevM;
+    if (d > 0.5) {
+      const grade = (e - prevE) / d;
+      const v = speedForPower(powerW, grade, massKg, (e + prevE) / 2);
+      const dt = d / v;
+      tijdS += dt;
+      ml += basis * (dt / 3600) * (grade * 100 >= CFG.climbGrade ? WATER.klimFactor : 1);
+    }
+    prevM = m; prevE = e;
+    if (m >= m1) break;
+  }
+  return { ml, tijdS };
+}
+
+/**
+ * Het bidonplan: welke punten kun je nog halen op wat je bij je hebt.
+ *
+ * Voor elk waterpunt vooruit staat erbij hoeveel je onderweg ernaartoe
+ * opdrinkt. Het laatste punt dat je haalt voordat je bidons leeg zijn is
+ * je laatste kans om bij te vullen - dat is het getal waar je iets aan
+ * hebt als het dertig graden is.
+ */
+function bidonPlan(lijst, vanKm, totKm, opts) {
+  const tempC = opts.tempC, massKg = opts.massKg || 85;
+  const powerW = opts.powerW || WATER.aannameWatt;
+  const voorraadMl = opts.voorraadMl != null ? opts.voorraadMl : WATER.bidons * WATER.bidonMl;
+
+  const punten = waterTussen(lijst, vanKm, totKm).map(w => {
+    const d = drinkTussen(vanKm * 1000, w.m, tempC, powerW, massKg);
+    return Object.assign({}, w, { mlTot: d.ml, tijdS: d.tijdS });
+  });
+  const naarEind = drinkTussen(vanKm * 1000, totKm * 1000, tempC, powerW, massKg);
+
+  // laatste punt dat je nog droog haalt
+  let laatsteHaalbaar = null;
+  for (const p of punten) {
+    if (p.mlTot <= voorraadMl) laatsteHaalbaar = p; else break;
+  }
+  const eersteOnhaalbaar = punten.find(p => p.mlTot > voorraadMl) || null;
+
+  // Wat kost het stuk NA je laatste bijvulpunt? Bij een lang droog stuk in
+  // de hitte kan dat meer zijn dan je bidons houden, en dan is "vul daar bij"
+  // een nutteloos advies - dan moet je extra meenemen of onderweg kopen.
+  let naVullenMl = null, naVullenTot = null;
+  if (laatsteHaalbaar) {
+    naVullenTot = eersteOnhaalbaar ? eersteOnhaalbaar : { km: totKm, m: totKm * 1000 };
+    naVullenMl = drinkTussen(laatsteHaalbaar.m, naVullenTot.m, tempC, powerW, massKg).ml;
+  }
+
+  return {
+    punten, voorraadMl,
+    naarEindMl: naarEind.ml, naarEindS: naarEind.tijdS,
+    haaltEind: naarEind.ml <= voorraadMl,
+    laatsteHaalbaar, eersteOnhaalbaar,
+    naVullenMl, naVullenTot,
+    tekortNaVullen: naVullenMl != null && naVullenMl > voorraadMl,
+    mlPerUur: WATER.mlPerUur + Math.max(0, tempC - WATER.refTemp) * WATER.mlPerGraad
+  };
+}
+
 /* ---------------------------- zonsondergang ------------------------ */
 
 /**
@@ -2699,6 +2852,68 @@ function runSelfTest() {
       st.algemeen[0].tijdS === an.gc[0].tijdS * 2 &&
       st.berg[0].p === Math.max(...Object.values(sc2.berg)) * 2,
       "algemeen " + fmtDur(st.algemeen[0].tijdS) + ", berg " + st.berg[0].p + " punten");
+    // --- water ---
+    {
+      // Vijf punten: vier vlak na elkaar, dan een gat van 30 km.
+      const basis = START_M / 1000;
+      const wtr = [2, 5, 8, 11, 41].map(dk => {
+        const p = routePosAt((basis + dk) * 1000);
+        return [Math.round((basis + dk) * 1000), p.lat, p.lon, 20, "kraan", ""];
+      });
+
+      const inBereik = waterTussen(wtr, basis, basis + 20);
+      ok("waterpunten binnen een bereik gefilterd", inBereik.length === 4,
+        inBereik.map(w => fmt1(w.km)).join(", "));
+
+      const droog = drogeStukken(wtr, basis, basis + 45, 15);
+      ok("het droge stuk van 30 km wordt gevonden",
+        droog.length >= 1 && Math.abs(droog[0].lengteKm - 30) < 0.2,
+        droog.length ? fmt1(droog[0].lengteKm) + " km vanaf km " + fmt1(droog[0].vanKm) : "geen");
+
+      // Warmer drinkt meer, en klimmen drinkt meer dan vlak.
+      const koel = drinkTussen(START_M, START_M + 10000, 18, 180, MASS);
+      const heet = drinkTussen(START_M, START_M + 10000, 32, 180, MASS);
+      ok("bij dertig graden drink je meer dan bij achttien", heet.ml > koel.ml * 1.3,
+        Math.round(koel.ml) + " ml tegen " + Math.round(heet.ml) + " ml over 10 km");
+
+      const klimM0 = ZWAARSTE.startKm * 1000;
+      const opKlim = drinkTussen(klimM0, klimM0 + 8000, 28, 180, MASS);
+      const opVlak = drinkTussen(START_M, START_M + 8000, 28, 180, MASS);
+      ok("acht kilometer klimmen kost meer water dan acht kilometer vlak",
+        opKlim.ml > opVlak.ml,
+        Math.round(opVlak.ml) + " ml vlak tegen " + Math.round(opKlim.ml) + " ml klimmend");
+
+      // Met een halve liter kom je niet ver.
+      const krap = bidonPlan(wtr, basis, basis + 45,
+        { tempC: 30, massKg: MASS, powerW: 180, voorraadMl: 500 });
+      ok("het bidonplan wijst een laatste kans aan",
+        krap.laatsteHaalbaar != null && !krap.haaltEind,
+        krap.laatsteHaalbaar ? "laatste kans op km " + fmt1(krap.laatsteHaalbaar.km) : "geen");
+      // Bij een lang droog stuk in de hitte helpt bijvullen niet genoeg,
+      // en dan moet de tool dat zeggen in plaats van naar een kraan wijzen.
+      ok("een droog stuk dat niet in je bidons past wordt gemeld",
+        krap.tekortNaVullen === true && krap.naVullenMl > krap.voorraadMl,
+        krap.naVullenMl == null ? "niet berekend" :
+          "na bijvullen nog " + fmt1(krap.naVullenMl / 1000) + " L nodig voor de laatste " +
+          fmt1(krap.naVullenTot.km - krap.laatsteHaalbaar.km) + " km, bidons houden " +
+          fmt1(krap.voorraadMl / 1000) + " L");
+
+      ok("punten voorbij je voorraad vallen af",
+        krap.eersteOnhaalbaar != null &&
+        krap.eersteOnhaalbaar.mlTot > krap.voorraadMl,
+        krap.eersteOnhaalbaar ? "eerste onhaalbare op km " + fmt1(krap.eersteOnhaalbaar.km) +
+          " kost " + Math.round(krap.eersteOnhaalbaar.mlTot) + " ml" : "-");
+      const ruim = bidonPlan(wtr, basis, basis + 12,
+        { tempC: 22, massKg: MASS, powerW: 180, voorraadMl: 1500 });
+      ok("met genoeg water haal je het eind zonder bijvullen", ruim.haaltEind,
+        fmt1(ruim.naarEindMl / 1000) + " L nodig, 1.5 L bij je");
+
+      // Een punt ver van de route hoort er niet in te komen.
+      const ver = projectToRoute(RT.lat[10] + 0.05, RT.lon[10] + 0.05, null);
+      ok("een punt vijf kilometer naast de route valt buiten de marge",
+        ver.dist > WATER.maxOffsetM, Math.round(ver.dist) + " m van de route");
+    }
+
     // --- de dag als tijdlijn ---
     {
       const dag = { label: "Testdag", startKm: START_M / 1000, endKm: END_M / 1000 };
@@ -2776,6 +2991,8 @@ const state = {
   days: DEFAULT_DAYS.map(d => Object.assign({}, d)),
   climbs: DEFAULT_CLIMBS.map(c => Object.assign({}, c)),
   sprints: DEFAULT_SPRINTS.map(x => Object.assign({}, x)),
+  water: DEFAULT_WATER.slice(),
+  laatsteWatt: null,
   files: [],            // {file, naam, gewicht}
   analysis: null,
   scored: [],           // uitslagen per dag voor het klassement
@@ -2888,6 +3105,16 @@ function drawProfile(svg, kmFrom, kmTo, opts) {
       fill: "#ffb703", "font-size": 24, "text-anchor": "middle", "font-weight": 700 });
     t.textContent = Math.round(be) + " m";
     svg.appendChild(t);
+  }
+
+  // waterpunten als druppels op de grondlijn
+  for (const w of (opts.water || [])) {
+    const m = w.km * 1000;
+    if (m < m0 || m > m1) continue;
+    const x = X(m);
+    svg.appendChild(svgEl("circle", { cx: x, cy: H - PAD_B - 14, r: 6,
+      fill: "#38bdf8", stroke: "#0b0d10", "stroke-width": 2,
+      opacity: w.offsetM <= 60 ? 1 : .55 }));
   }
 
   // waar je stilstond
@@ -3156,6 +3383,16 @@ function renderNextUp() {
       "% · +" + Math.round(k.gainM) + " hm" + (punten ? " · " + punten + " punten" : ""),
       "#ef4444"));
   }
+  const wtr = waterTussen(state.water, nu, d.endKm)[0];
+  if (wtr) {
+    grid.appendChild(kaart(
+      "Volgende water",
+      fmt1(wtr.km - nu) + " km",
+      "km " + fmt1(wtr.km) + " · " + wtr.soort +
+      (wtr.offsetM <= 60 ? " · op de route" : " · " + Math.round(wtr.offsetM) + " m ernaast"),
+      "#38bdf8"));
+  }
+
   const s = sprints[0];
   if (s) {
     grid.appendChild(kaart(
@@ -3206,13 +3443,19 @@ function drawRest() {
   if (!d) return;
   renderNextUp();
   renderVoortgang();
+  renderWater();
   const from = state.etaKm != null ? clamp(state.etaKm, d.startKm, d.endKm) : d.startKm;
   const to = parseFloat($("etaTarget").value);
   const end = isFinite(to) ? to : d.endKm;
-  drawProfile($("svgRest"), from, Math.max(from + 1, end), { markKm: state.etaKm });
+  drawProfile($("svgRest"), from, Math.max(from + 1, end), {
+    markKm: state.etaKm,
+    water: waterTussen(state.water, from, end)
+  });
   const gain = routeGain(from * 1000, end * 1000);
+  const wAantal = waterTussen(state.water, from, end).length;
   $("restInfo").textContent = "Nog " + fmt1(end - from) + " km en +" + Math.round(gain) +
-    " hm. Steilste stukken rood onderaan.";
+    " hm. Steilste stukken rood onderaan." +
+    (wAantal ? "  Blauwe stippen zijn water: " + wAantal + " te gaan." : "");
 }
 
 $("etaDay").addEventListener("change", () => {
@@ -3351,6 +3594,7 @@ $("btnEta").addEventListener("click", () => {
     + "In plaats daarvan is gezocht naar het vermogen dat jouw tijd over het gereden profiel verklaart, "
     + "en dat is losgelaten op wat er nog komt. Zo weegt een klim zwaarder dan een vlak stuk. Schatting."));
 
+  if (eta.powerW) state.laatsteWatt = eta.powerW;
   state.etaKm = from;
   drawRest();
   drawMap([{ km: from, color: "#fff" }]);
@@ -3704,7 +3948,9 @@ function renderDag() {
     .filter(st => st.durS >= CFG.stopCountMinS && st.km != null &&
       st.km >= an.kmFrom - 1 && st.km <= an.kmTo + 1)
     .map(st => ({ km: st.km, durS: st.durS }));
-  drawProfile($("svgDag"), an.kmFrom, an.kmTo, { stops, toonTop: true });
+  drawProfile($("svgDag"), an.kmFrom, an.kmTo, {
+    stops, toonTop: true, water: waterTussen(state.water, an.kmFrom, an.kmTo)
+  });
   $("dagProfielInfo").textContent = stops.length
     ? stops.length + (stops.length === 1 ? " stop" : " stops") + " van meer dan twee minuten, "
       + "met de duur erbij. Klimmen in geel, steilheid als band onderaan."
@@ -3724,6 +3970,199 @@ function renderDag() {
     ul.appendChild(li);
   }
   box.appendChild(ul);
+}
+
+/* -------------------------------- water ---------------------------- */
+
+function renderWater() {
+  const box = $("waterOut");
+  clear(box);
+  const d = curDay();
+  if (!d) return;
+  const nu = clamp(state.etaKm != null ? state.etaKm : d.startKm, d.startKm, d.endKm);
+
+  if (!state.water.length) {
+    box.appendChild(note("warn", "Nog geen waterpunten geladen. Zonder die lijst kan " +
+      "deze tool niet weten waar je kunt bijvullen — zie hieronder."));
+    return;
+  }
+
+  const tempC = parseFloat($("waterTemp").value);
+  const voorraadMl = (parseFloat($("waterVoorraad").value) || 0) * 1000;
+  const plan = bidonPlan(state.water, nu, d.endKm, {
+    tempC: isFinite(tempC) ? tempC : 25,
+    massKg: parseFloat($("etaMass").value) || 85,
+    powerW: state.laatsteWatt || WATER.aannameWatt,
+    voorraadMl
+  });
+
+  // eerstvolgende punt
+  const v = plan.punten[0];
+  const grid = el("div", "stack");
+  if (v) {
+    const c = el("div", "stat");
+    c.style.borderLeft = "3px solid #38bdf8";
+    c.appendChild(el("span", null, "Volgende water"));
+    c.appendChild(el("div", "big", fmt1(v.km - nu) + " km"));
+    c.appendChild(el("small", null, "km " + fmt1(v.km) + " · " + v.soort +
+      (v.offsetM <= 60 ? " · op de route" : " · " + Math.round(v.offsetM) + " m ernaast") +
+      (v.naam ? " · " + v.naam : "")));
+    grid.appendChild(c);
+  }
+  const c2 = el("div", "stat");
+  c2.style.borderLeft = "3px solid " + (plan.haaltEind ? "#22c55e" : "#f59e0b");
+  c2.appendChild(el("span", null, "Tot de finish"));
+  c2.appendChild(el("div", "big", fmt1(plan.naarEindMl / 1000) + " L"));
+  c2.appendChild(el("small", null, "nodig bij " + Math.round(plan.mlPerUur) + " ml per uur"));
+  grid.appendChild(c2);
+  box.appendChild(grid);
+
+  // het advies
+  if (!v) {
+    box.appendChild(note(plan.haaltEind ? "ok" : "bad",
+      "Geen water meer tot de finish op km " + fmt1(d.endKm) + ". Je hebt er " +
+      fmt1(plan.naarEindMl / 1000) + " L voor nodig en je hebt " +
+      fmt1(plan.voorraadMl / 1000) + " L bij je."));
+  } else if (plan.haaltEind) {
+    box.appendChild(note("ok", "Je haalt de finish op wat je bij je hebt. Bijvullen mag, " +
+      "hoeft niet."));
+  } else if (plan.laatsteHaalbaar) {
+    const L = plan.laatsteHaalbaar;
+    const volgende = plan.naVullenTot;
+    box.appendChild(note(plan.tekortNaVullen ? "bad" : (L.km - nu < 5 ? "warn" : ""),
+      "Laatste kans om bij te vullen: km " + fmt1(L.km) + ", over " + fmt1(L.km - nu) +
+      " km. Daarna is het " + fmt1(volgende.km - L.km) + " km tot het volgende water."));
+    if (plan.tekortNaVullen) {
+      box.appendChild(note("bad",
+        "Let op: dat stuk kost " + fmt1(plan.naVullenMl / 1000) + " L en je bidons houden " +
+        fmt1(plan.voorraadMl / 1000) + " L. Ook met volle bidons kom je " +
+        fmt1((plan.naVullenMl - plan.voorraadMl) / 1000) + " L tekort. Neem extra mee, " +
+        "of koop onderweg iets."));
+    }
+  } else {
+    box.appendChild(note("bad", "Je bidons zijn leeg vóór het eerste punt op km " +
+      fmt1(v.km) + ". Daar heb je " + fmt1(v.mlTot / 1000) + " L voor nodig en je hebt er " +
+      fmt1(plan.voorraadMl / 1000) + ". Rustiger aan, of onderweg iets kopen."));
+  }
+
+  // droge stukken vandaag
+  const droog = drogeStukken(state.water, nu, d.endKm);
+  if (droog.length) {
+    const g = droog[0];
+    box.appendChild(note(g.lengteKm >= 25 ? "warn" : "",
+      "Langste stuk zonder water vandaag: " + fmt1(g.lengteKm) + " km, van km " +
+      fmt1(g.vanKm) + " tot " + fmt1(g.totKm) + "." +
+      (droog.length > 1 ? " Er zijn er " + droog.length + " boven de " + WATER.langsKm + " km." : "")));
+  }
+
+  // de lijst
+  const det = el("details");
+  det.appendChild(el("summary", null, plan.punten.length + " waterpunten nog te gaan vandaag"));
+  const t = el("table");
+  t.appendChild(trow("th", ["km", "Over", "Waar", "Nodig"]));
+  const tb = el("tbody");
+  for (const p of plan.punten.slice(0, 25)) {
+    const tr = trow("td", [
+      fmt1(p.km), fmt1(p.km - nu) + " km",
+      p.soort + (p.offsetM <= 60 ? "" : " (" + Math.round(p.offsetM) + " m)"),
+      fmt1(p.mlTot / 1000) + " L"
+    ]);
+    if (p.mlTot > plan.voorraadMl) tr.style.opacity = ".5";
+    if (plan.laatsteHaalbaar && p.km === plan.laatsteHaalbaar.km) {
+      tr.style.color = "var(--accent)";
+      tr.style.fontWeight = "700";
+    }
+    tb.appendChild(tr);
+  }
+  t.appendChild(tb);
+  det.appendChild(t);
+  det.appendChild(el("div", "est", "Grijs betekent: daar kom je niet droog. " +
+    "De gele regel is je laatste kans om bij te vullen. 'Nodig' is wat je vanaf hier " +
+    "opdrinkt tot dat punt, klimmen zwaarder gerekend dan vlak."));
+  box.appendChild(det);
+}
+
+$("waterIn").addEventListener("change", async e => {
+  const f = e.target.files[0];
+  const msg = $("waterImportMsg");
+  clear(msg);
+  if (!f) return;
+  try {
+    const punten = parseWaterBestand(await readFile(f));
+    if (!punten.length) throw new Error("geen punten in dit bestand gevonden");
+    const opRoute = [];
+    for (const p of punten) {
+      const pr = projectToRoute(p.lat, p.lon, null);
+      if (pr.dist <= WATER.maxOffsetM) {
+        opRoute.push([Math.round(pr.m), p.lat, p.lon, Math.round(pr.dist), p.soort, p.naam]);
+      }
+    }
+    opRoute.sort((a, b) => a[0] - b[0]);
+    // punten die praktisch op elkaar liggen samenvoegen
+    const uniek = [];
+    for (const w of opRoute) {
+      const vorig = uniek[uniek.length - 1];
+      if (vorig && w[0] - vorig[0] < 120) { if (w[3] < vorig[3]) uniek[uniek.length - 1] = w; continue; }
+      uniek.push(w);
+    }
+    state.water = uniek;
+    msg.appendChild(note("ok", punten.length + " punten gelezen, " + uniek.length +
+      " liggen binnen " + WATER.maxOffsetM + " m van de route. " +
+      "Vergeet niet te exporteren, dan heb je ze morgen weer."));
+    renderWater();
+    drawRest();
+  } catch (err) {
+    msg.appendChild(note("bad", "Inlezen mislukt: " + err.message));
+  }
+  e.target.value = "";
+});
+
+/**
+ * Leest waterpunten uit GeoJSON, ruwe Overpass-JSON of GPX-waypoints.
+ * Alle drie komen voor: overpass-turbo exporteert GeoJSON, de API zelf
+ * geeft Overpass-JSON, en uit sommige apps rolt een GPX met waypoints.
+ */
+function parseWaterBestand(tekst) {
+  tekst = tekst.trim();
+  const soortVan = t => {
+    const a = (t.amenity || "") + "";
+    if (a === "drinking_water" || t.man_made === "water_tap") return "kraan";
+    if (a === "fountain") return "fontein";
+    if (a === "water_point") return "tappunt";
+    if (t.natural === "spring") return "bron";
+    if (t.man_made === "water_well") return "put";
+    return "water";
+  };
+  const naamVan = t => (t.name || t.operator || t.description || "").slice(0, 40);
+
+  if (tekst[0] === "<") {
+    const doc = new DOMParser().parseFromString(tekst, "application/xml");
+    const wpts = doc.getElementsByTagName("wpt");
+    const uit = [];
+    for (let i = 0; i < wpts.length; i++) {
+      const w = wpts[i];
+      const n = w.getElementsByTagName("name")[0];
+      uit.push({ lat: parseFloat(w.getAttribute("lat")), lon: parseFloat(w.getAttribute("lon")),
+                 naam: n ? n.textContent.slice(0, 40) : "", soort: "water" });
+    }
+    return uit;
+  }
+
+  const data = JSON.parse(tekst);
+  if (data.type === "FeatureCollection") {
+    return (data.features || []).filter(f => f.geometry && f.geometry.type === "Point")
+      .map(f => ({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
+                   naam: naamVan(f.properties || {}), soort: soortVan(f.properties || {}) }));
+  }
+  if (Array.isArray(data.elements)) {
+    return data.elements.map(el => {
+      const lat = el.lat != null ? el.lat : (el.center || {}).lat;
+      const lon = el.lon != null ? el.lon : (el.center || {}).lon;
+      if (lat == null || lon == null) return null;
+      return { lat, lon, naam: naamVan(el.tags || {}), soort: soortVan(el.tags || {}) };
+    }).filter(Boolean);
+  }
+  throw new Error("onbekend formaat, verwacht GeoJSON, Overpass-JSON of GPX");
 }
 
 /* ------------------------- voortgang van de lus -------------------- */
@@ -4101,6 +4540,7 @@ $("btnExport").addEventListener("click", () => {
     dagen: state.days,
     klimmen: state.climbs,
     sprints: state.sprints,
+    water: state.water,
     uitslagen: state.scored
   };
   download("grand-escape-stand-" + new Date().toISOString().slice(0, 10) + ".json",
@@ -4132,6 +4572,7 @@ function importJSON(tekst) {
     if (Array.isArray(data.dagen) && data.dagen.length) state.days = data.dagen;
     if (Array.isArray(data.klimmen) && data.klimmen.length) state.climbs = data.klimmen;
     if (Array.isArray(data.sprints) && data.sprints.length) state.sprints = data.sprints;
+    if (Array.isArray(data.water)) state.water = data.water;
     state.scored = Array.isArray(data.uitslagen) ? data.uitslagen : [];
     refreshDays();
     renderStandings();
@@ -4202,6 +4643,9 @@ $("etaRider").addEventListener("change", () => {
 });
 $("etaRider").value = "0";
 $("etaMass").value = RIDERS[0].gewicht;
+$("waterTemp").value = 28;
+$("waterVoorraad").value = (WATER.bidons * WATER.bidonMl / 1000).toFixed(2).replace(/0$/, "");
+for (const id of ["waterTemp", "waterVoorraad"]) $(id).addEventListener("input", renderWater);
 
 $("routeSub").textContent = ROUTE_META.totalKm + " km · +" + ROUTE_META.gainM + " hm · top " + ROUTE_META.maxEleM + " m";
 fillDaySelects();

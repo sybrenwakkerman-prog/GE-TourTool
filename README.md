@@ -131,6 +131,51 @@ houdt de `TARGET_CLIMBS` zwaarste over. Zet dat getal hoger of lager en draai
 opnieuw. Klimmen zonder herkenbare naam heten naar hun kilometer; hernoemen
 kan in `DEFAULT_CLIMBS`.
 
+## Water
+
+Het is warm, en op 45 km zonder kraan wil je niet worden verrast. De tool
+kent daarom de drinkwaterpunten langs de route.
+
+De data komt uit **OpenStreetMap**, dezelfde bron waar waterapps als Watrify
+op draaien. Ophalen doe je één keer:
+
+```
+python3 build_water.py --query     # print de Overpass-query
+```
+
+Plak die op [overpass-turbo.eu](https://overpass-turbo.eu), draai hem, en
+kies *Export → download as GeoJSON*. Dan:
+
+```
+python3 build_water.py water.geojson
+```
+
+Dat projecteert elk punt op de route, gooit alles weg dat verder dan 350 m
+ernaast ligt, voegt punten samen die op dezelfde plek staan, en bakt de rest
+in `tourtool.html`. Je kunt hetzelfde bestand ook rechtstreeks in de app
+laden onder *Water → Waterpunten laden of vervangen*; dan gaat het mee in de
+JSON-export en heb je het de dagen erna weer.
+
+Op het Vandaag-tabblad staat dan:
+
+- **Volgende water**: hoeveel kilometer, en of het op de route ligt of er
+  een paar honderd meter naast. Dat verschil zie je meteen — je gaat niet
+  klimmen voor een kraan.
+- **Tot de finish**: hoeveel liter je nog nodig hebt bij de temperatuur die
+  je invult. Rond 400 ml per uur bij twintig graden, en er 40 ml per uur bij
+  per graad daarboven. Klimmen telt anderhalf keer zo zwaar, want je werkt
+  harder, rijdt langzamer en hebt minder rijwind.
+- **Laatste kans om bij te vullen**: het laatste punt dat je nog droog haalt
+  op wat je bij je hebt. Dat is het getal waar je iets aan hebt.
+- Past het stuk daarna niet in je bidons, dan zegt hij dat ook — met hoeveel
+  liter je tekortkomt. "Vul daar bij" is nutteloos advies als het niet genoeg
+  is.
+- **Langste stuk zonder water** van de dag, en de hele lijst met per punt wat
+  het je kost om er te komen.
+
+Waterpunten staan als blauwe stippen onder het restprofiel en onder het
+dagprofiel. Doorzichtige stippen liggen naast de route.
+
 ## De drie tabbladen
 
 **Vandaag** — vul je huidige km in (of laat de GPS hem bepalen) plus hoe
