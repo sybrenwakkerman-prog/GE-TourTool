@@ -272,13 +272,15 @@ ul.plain li:last-child{border-bottom:0}
       <div><label for="waterVoorraad">Bidons mee (liter)</label><input type="number" id="waterVoorraad" step="0.25" min="0" max="6" inputmode="decimal"></div>
     </div>
     <div id="waterOut" style="margin-top:.7rem"></div>
-    <details style="margin-top:.6rem">
-      <summary>Waterpunten laden of vervangen</summary>
-      <p class="est">Uit OpenStreetMap, dezelfde bron als waterapps gebruiken.
-        Draai de query uit <code>build_water.py --query</code> op overpass-turbo.eu,
-        exporteer als GeoJSON en laad hem hier. Werkt ook met een GPX vol waypoints.
-        Wat je laadt gaat mee in de JSON-export, dus je hoeft het maar één keer te doen.</p>
-      <label class="filebtn btn sec" for="waterIn" style="margin-top:.4rem">Kies GeoJSON of GPX
+    <details style="margin-top:.6rem" id="waterLaden">
+      <summary>Waterpunten ophalen of laden</summary>
+      <p class="est">De punten komen uit OpenStreetMap, dezelfde bron als waterapps
+        gebruiken. Dit is het enige onderdeel dat één keer internet nodig heeft;
+        daarna zit alles in de app en gaat het mee in de JSON-export.</p>
+      <button class="btn" id="btnWaterHaal" style="margin-top:.4rem">Haal ze nu op</button>
+      <p class="est" style="margin-top:.5rem">Geen bereik, of lukt het niet? Laad dan een
+        bestand: GeoJSON uit overpass-turbo, ruwe Overpass-JSON, of een GPX met waypoints.</p>
+      <label class="filebtn btn sec" for="waterIn">Kies een bestand
         <input type="file" id="waterIn" accept=".geojson,.json,.gpx">
       </label>
       <div id="waterImportMsg" style="margin-top:.5rem"></div>
@@ -3982,8 +3984,12 @@ function renderWater() {
   const nu = clamp(state.etaKm != null ? state.etaKm : d.startKm, d.startKm, d.endKm);
 
   if (!state.water.length) {
-    box.appendChild(note("warn", "Nog geen waterpunten geladen. Zonder die lijst kan " +
-      "deze tool niet weten waar je kunt bijvullen — zie hieronder."));
+    box.appendChild(note("warn", "Nog geen waterpunten geladen. Zonder die lijst weet " +
+      "deze tool niet waar je kunt bijvullen."));
+    // Het vak eronder openklappen: anders staat de enige knop die je nu
+    // nodig hebt verstopt achter een pijltje.
+    const det = $("waterLaden");
+    if (det) det.open = true;
     return;
   }
 
@@ -4082,6 +4088,95 @@ function renderWater() {
   box.appendChild(det);
 }
 
+/**
+ * Waterpunten rechtstreeks bij OpenStreetMap ophalen.
+ *
+ * Dit is het enige stuk van de tool dat internet aanraakt, en alleen als je
+ * er zelf op drukt. Daarna staat alles in het geheugen en in de JSON-export,
+ * en werkt de rest weer gewoon zonder bereik. Lukt het niet, dan is er nog
+ * altijd het bestand.
+ */
+const OVERPASS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter"
+];
+
+function overpassQuery() {
+  // bounding box uit de route zelf, plus ruim drie kilometer marge
+  let laMin = 90, laMax = -90, loMin = 180, loMax = -180;
+  for (let i = 0; i < RT.n; i++) {
+    laMin = Math.min(laMin, RT.lat[i]); laMax = Math.max(laMax, RT.lat[i]);
+    loMin = Math.min(loMin, RT.lon[i]); loMax = Math.max(loMax, RT.lon[i]);
+  }
+  const b = [laMin - 0.03, loMin - 0.03, laMax + 0.03, loMax + 0.03]
+    .map(x => x.toFixed(2)).join(",");
+  return "[out:json][timeout:120];(" +
+    'node["amenity"="drinking_water"](' + b + ");" +
+    'node["man_made"="water_tap"]["drinking_water"!="no"](' + b + ");" +
+    'node["amenity"="water_point"](' + b + ");" +
+    'node["amenity"="fountain"]["drinking_water"~"^(yes|treated)$"](' + b + ");" +
+    'node["natural"="spring"]["drinking_water"="yes"](' + b + ");" +
+    'node["man_made"="water_well"]["drinking_water"="yes"](' + b + ");" +
+    ");out body;";
+}
+
+$("btnWaterHaal").addEventListener("click", async () => {
+  const btn = $("btnWaterHaal"), msg = $("waterImportMsg");
+  clear(msg);
+  btn.disabled = true; btn.textContent = "Bezig met ophalen...";
+  const vraag = overpassQuery();
+  let laatsteFout = "";
+  for (const server of OVERPASS) {
+    try {
+      const ctrl = new AbortController();
+      const klok = setTimeout(() => ctrl.abort(), 90000);
+      const res = await fetch(server, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(vraag),
+        signal: ctrl.signal
+      });
+      clearTimeout(klok);
+      if (!res.ok) throw new Error("server gaf " + res.status);
+      const tekst = await res.text();
+      const aantal = verwerkWater(parseWaterBestand(tekst));
+      msg.appendChild(note("ok", aantal.gelezen + " punten opgehaald, " + aantal.bewaard +
+        " liggen binnen " + WATER.maxOffsetM + " m van de route. " +
+        "Exporteer je stand, dan heb je ze morgen zonder bereik weer."));
+      renderWater(); drawRest();
+      btn.disabled = false; btn.textContent = "Opnieuw ophalen";
+      return;
+    } catch (err) {
+      laatsteFout = err.name === "AbortError" ? "te lang geen antwoord" : err.message;
+    }
+  }
+  msg.appendChild(note("bad", "Ophalen lukte niet (" + laatsteFout +
+    "). Heb je bereik? Anders werkt het bestand hieronder ook."));
+  btn.disabled = false; btn.textContent = "Haal ze nu op";
+});
+
+/** Projecteert, filtert op afstand tot de route en voegt dubbelingen samen. */
+function verwerkWater(punten) {
+  const opRoute = [];
+  for (const p of punten) {
+    if (!isFinite(p.lat) || !isFinite(p.lon)) continue;
+    const pr = projectToRoute(p.lat, p.lon, null);
+    if (pr.dist <= WATER.maxOffsetM) {
+      opRoute.push([Math.round(pr.m), p.lat, p.lon, Math.round(pr.dist), p.soort, p.naam]);
+    }
+  }
+  opRoute.sort((a, b) => a[0] - b[0]);
+  const uniek = [];
+  for (const w of opRoute) {
+    const vorig = uniek[uniek.length - 1];
+    if (vorig && w[0] - vorig[0] < 120) { if (w[3] < vorig[3]) uniek[uniek.length - 1] = w; continue; }
+    uniek.push(w);
+  }
+  state.water = uniek;
+  return { gelezen: punten.length, bewaard: uniek.length };
+}
+
 $("waterIn").addEventListener("change", async e => {
   const f = e.target.files[0];
   const msg = $("waterImportMsg");
@@ -4090,23 +4185,8 @@ $("waterIn").addEventListener("change", async e => {
   try {
     const punten = parseWaterBestand(await readFile(f));
     if (!punten.length) throw new Error("geen punten in dit bestand gevonden");
-    const opRoute = [];
-    for (const p of punten) {
-      const pr = projectToRoute(p.lat, p.lon, null);
-      if (pr.dist <= WATER.maxOffsetM) {
-        opRoute.push([Math.round(pr.m), p.lat, p.lon, Math.round(pr.dist), p.soort, p.naam]);
-      }
-    }
-    opRoute.sort((a, b) => a[0] - b[0]);
-    // punten die praktisch op elkaar liggen samenvoegen
-    const uniek = [];
-    for (const w of opRoute) {
-      const vorig = uniek[uniek.length - 1];
-      if (vorig && w[0] - vorig[0] < 120) { if (w[3] < vorig[3]) uniek[uniek.length - 1] = w; continue; }
-      uniek.push(w);
-    }
-    state.water = uniek;
-    msg.appendChild(note("ok", punten.length + " punten gelezen, " + uniek.length +
+    const n = verwerkWater(punten);
+    msg.appendChild(note("ok", n.gelezen + " punten gelezen, " + n.bewaard +
       " liggen binnen " + WATER.maxOffsetM + " m van de route. " +
       "Vergeet niet te exporteren, dan heb je ze morgen weer."));
     renderWater();

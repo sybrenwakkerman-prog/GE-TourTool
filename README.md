@@ -137,24 +137,25 @@ Het is warm, en op 45 km zonder kraan wil je niet worden verrast. De tool
 kent daarom de drinkwaterpunten langs de route.
 
 De data komt uit **OpenStreetMap**, dezelfde bron waar waterapps als Watrify
-op draaien. Ophalen doe je één keer:
+op draaien.
+
+**In de app**, en dat is de makkelijkste weg: *Water → Waterpunten ophalen of
+laden → Haal ze nu op*. Eén keer indrukken met bereik, en de tool haalt de
+punten zelf bij OpenStreetMap op, projecteert ze op de route en gooit weg wat
+er verder dan 350 m naast ligt. Daarna zit alles in de app en gaat het mee in
+de JSON-export, dus onderweg heb je geen bereik meer nodig. Dit is het enige
+onderdeel van de tool dat ooit internet aanraakt, en alleen als je er zelf op
+drukt.
+
+Lukt dat niet, dan kun je een bestand laden: GeoJSON uit overpass-turbo, ruwe
+Overpass-JSON, of een GPX met waypoints.
+
+**Vooraf inbakken** kan ook, zodat het bestand het al weet:
 
 ```
 python3 build_water.py --query     # print de Overpass-query
-```
-
-Plak die op [overpass-turbo.eu](https://overpass-turbo.eu), draai hem, en
-kies *Export → download as GeoJSON*. Dan:
-
-```
 python3 build_water.py water.geojson
 ```
-
-Dat projecteert elk punt op de route, gooit alles weg dat verder dan 350 m
-ernaast ligt, voegt punten samen die op dezelfde plek staan, en bakt de rest
-in `tourtool.html`. Je kunt hetzelfde bestand ook rechtstreeks in de app
-laden onder *Water → Waterpunten laden of vervangen*; dan gaat het mee in de
-JSON-export en heb je het de dagen erna weer.
 
 Op het Vandaag-tabblad staat dan:
 
